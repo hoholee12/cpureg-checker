@@ -2,7 +2,8 @@ import sys
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
-from subprocess import Popen, PIPE
+# from subprocess import Popen, PIPE
+import subprocess
 
 # args
 mw_workspace_dir = "cpureg-workspace"
@@ -10,7 +11,7 @@ mw_workspace_dir = "cpureg-workspace"
 def make_workspace_persrc(srcpath: str, incpaths: list):
     # args
     global mw_workspace_dir
-    mw_gcc_arg = "/usr/bin/gcc -E "
+    mw_gcc_arg = "gcc -E "
     mw_gcc_arg_inc = " -I "
     mw_srcpath_fnonly = os.path.basename(srcpath).split(".")[0]
     # generate args
@@ -19,10 +20,7 @@ def make_workspace_persrc(srcpath: str, incpaths: list):
         mw_gcc_arg += mw_gcc_arg_inc + i
     mw_gcc_arg += " -o " + mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".generated.c"
     # run gcc
-    p = Popen("C:/cygwin64/bin/bash.exe", stdin=PIPE, stdout=PIPE)
-    mw_gcc_arg_b = mw_gcc_arg.encode()
-    p.stdin.write(mw_gcc_arg_b)
-    p.stdin.close()
+    subprocess.call(mw_gcc_arg, shell = True)
 
 # all the preprocessed source files go here
 # we generate preprocessed source files and process checker according to those files
@@ -41,7 +39,7 @@ def make_workspace(incpaths: list):
         incpath = incpath_.replace("/", os.path.sep)
         for dirpath, dirnames, filenames in os.walk(incpath):
             for filename in filenames:
-                if filename.endswith(".c") or filename.endswith(".h"):
+                if filename.endswith(".c"):
                     srcpaths.add(dirpath + os.path.sep + filename)
     # launch individual src generation
     with ThreadPoolExecutor(max_workers = 4) as executor:
