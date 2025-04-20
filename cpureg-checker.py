@@ -10,9 +10,7 @@ mw_workspace_dir = "cpureg_workspace"
 pf_workspace_dir = "cpureg_parsed"
 callstack_gen_dir = "callstack_gen"
 proc_funcbody_dir = "proc_funcbody"
-proc_funcbody_wcomments_dir = "proc_funcbody_wcomments"
 proc_funcbody_asm_dir = "proc_funcbody_asm"
-proc_funcbody_asm_wcomments_dir = "proc_funcbody_asm_wcomments"
 
 # user args
 target_platform = ""
@@ -150,10 +148,9 @@ def parse_functions_asm(srcpath: str):
             # TODO
 
 # genfile: generated src path
-# this will strip every 
+# this will strip every comment and index every function from c sources
 def parse_functions_c_each_file(genfile: str):
     src_funcs = {}
-    src_funcs_wcomments = {}
     func_unit_tracker = {}
 
     with open(genfile, 'r', encoding = "UTF-8") as f:
@@ -166,14 +163,6 @@ def parse_functions_c_each_file(genfile: str):
         comment = 0 # inside comment
 
         for i in range(0, loc):
-            # raw capture
-            raw_captured = 0
-            if in_func == 2 and func_name != "":
-                raw_captured = 1
-                if src_funcs_wcomments.get(func_name, None) != None:
-                    src_funcs_wcomments[func_name] += lines[i]
-                else:
-                    src_funcs_wcomments[func_name] = lines[i]
 
             # inside a comment - do not process
             if comment_pattern_1.search(lines[i]):
@@ -274,13 +263,6 @@ def parse_functions_c_each_file(genfile: str):
                 else:
                     src_funcs[func_name] = rline
 
-                # raw capture, in case the raw capture in the header did not run
-                if in_func == 2 and func_name != "" and raw_captured == 0:
-                    if src_funcs_wcomments.get(func_name, None) != None:
-                        src_funcs_wcomments[func_name] += lines[i]
-                    else:
-                        src_funcs_wcomments[func_name] = lines[i]
-
                 if in_func == 1:
                     # strip comments
                     src_funcs[func_name] = comment_pattern_w.sub('', src_funcs[func_name]).strip()
@@ -288,7 +270,7 @@ def parse_functions_c_each_file(genfile: str):
                     func_name = ""
 
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(src_funcs)))
-    return src_funcs, src_funcs_wcomments, func_unit_tracker
+    return src_funcs, func_unit_tracker
 
 def parse_functions_c_merge_result(genfiles: list):
     src_funcs = {}
@@ -344,19 +326,13 @@ def parse_functions_c_merge_result(genfiles: list):
     # save processed function bodies
     if os.path.exists(proc_funcbody_dir) and os.path.isdir(proc_funcbody_dir):
         shutil.rmtree(proc_funcbody_dir)
-        shutil.rmtree(proc_funcbody_wcomments_dir)
 
     os.makedirs(proc_funcbody_dir, exist_ok = True)
-    os.makedirs(proc_funcbody_wcomments_dir, exist_ok = True)
 
     for func in src_funcs.keys():
         new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
         with open(new_file, 'w') as wf:
             wf.write(src_funcs[func])
-    for func in src_funcs_wcomments.keys():
-        new_file = proc_funcbody_wcomments_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
-        with open(new_file, 'w') as wf:
-            wf.write(src_funcs_wcomments[func])
 
 
 
