@@ -6,16 +6,31 @@ import subprocess
 import re
 
 # args
-mw_workspace_dir = "cpureg-workspace"
-pf_workspace_dir = "cpureg-parsed"
+mw_workspace_dir = "cpureg_workspace"
+pf_workspace_dir = "cpureg_parsed"
 callstack_gen_dir = "callstack_gen"
 proc_funcbody_dir = "proc_funcbody"
 proc_funcbody_wcomments_dir = "proc_funcbody_wcomments"
+proc_funcbody_asm_dir = "proc_funcbody_asm"
+proc_funcbody_asm_wcomments_dir = "proc_funcbody_asm_wcomments"
 
 # user args
 target_platform = ""
 
 # patterns for src comments
+comment_pattern_1 = re.compile(r'^\s*/\*')
+comment_pattern_2 = re.compile(r'\*/\s*$')
+comment_pattern_w = re.compile(r'/\*.*?\*/')
+comment_pattern_w2 = re.compile(r'(.*)/\*')
+
+not_in_line = re.compile(r'(\w+;|^extern|\s+while|\s+for|\s+if|\s+switch)')
+pre_func_pattern = re.compile(r'\)\s*{\s*')
+func_pattern = re.compile(r'\s*(\w+)\s*$')
+
+oneliner_func_pattern = re.compile(r'(.*})\s*')
+stubinfo_pattern = re.compile(r'.*\\(\w+)\.')
+
+# patterns for asm comments
 asm_comment_pattern_1_start = re.compile(r"(.*?)/\*")   # /*
 # asm_comment_pattern_1 - make a flag to skip inbetween lines
 asm_comment_pattern_1_end = re.compile(r"\*/(.*?)")     # */
@@ -29,8 +44,6 @@ asm_comment_pattern_3 = re.compile(r"(.*?)\/\/")        # //
 # hello: -> matches
 # _hello: -> matches
 asm_func_pattern_1 = re.compile(r"^(\w+):")
-
-comment_pattern_4 = re.compile("")
 
 def make_workspace_persrc(srcpath: str, incpaths: list):
     # args
@@ -142,18 +155,6 @@ def parse_functions_c_each_file(genfile: str):
     src_funcs = {}
     src_funcs_wcomments = {}
     func_unit_tracker = {}
-
-    comment_pattern_1 = re.compile(r'^\s*/\*')
-    comment_pattern_2 = re.compile(r'\*/\s*$')
-    comment_pattern_w = re.compile(r'/\*.*?\*/')
-    comment_pattern_w2 = re.compile(r'(.*)/\*')
-
-    not_in_line = re.compile(r'(\w+;|^extern|\s+while|\s+for|\s+if|\s+switch)')
-    pre_func_pattern = re.compile(r'\)\s*{\s*')
-    func_pattern = re.compile(r'\s*(\w+)\s*$')
-
-    oneliner_func_pattern = re.compile(r'(.*})\s*')
-    stubinfo_pattern = re.compile(r'.*\\(\w+)\.')
 
     with open(genfile, 'r', encoding = "UTF-8") as f:
         lines = f.readlines()
