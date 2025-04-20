@@ -12,6 +12,9 @@ callstack_gen_dir = "callstack_gen"
 proc_funcbody_dir = "proc_funcbody"
 proc_funcbody_asm_dir = "proc_funcbody_asm"
 
+# asm extensions
+asm_ext = []
+
 # user args
 target_platform = ""
 
@@ -43,113 +46,26 @@ asm_comment_pattern_3 = re.compile(r"(.*?)\/\/")        # //
 # _hello: -> matches
 asm_func_pattern_1 = re.compile(r"^(\w+):")
 
-def make_workspace_persrc(srcpath: str, incpaths: list):
-    # args
-    global mw_workspace_dir
+# genfile: generated src path
+# this will strip every comment and index every function from c sources
+# uses mw_workspace_dir to temporarily store the preprocessed files
+def parse_functions_c_persrc(srcpath: str, incpaths: list):
+    # do macro preprocess first
     mw_gcc_arg = "gcc -E "
     mw_gcc_arg_inc = " -I "
     mw_srcpath_fnonly = os.path.basename(srcpath).split(".")[0]
+    genfile = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".generated.c"
+    # check and remove old file
+    if os.path.exists(genfile) and os.path.isfile(genfile):
+        os.remove(genfile)
     # generate args
     mw_gcc_arg += srcpath
     for i in incpaths:
         mw_gcc_arg += mw_gcc_arg_inc + i
-    mw_gcc_arg += " -o " + mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".generated.c"
+    mw_gcc_arg += " -o " + genfile
     # run gcc
     subprocess.call(mw_gcc_arg, shell = True)
 
-# all the preprocessed source files go here
-# we generate preprocessed source files and process checker according to those files
-def make_workspace(incpaths: list):
-    # args
-    global mw_workspace_dir
-    # ready workspace
-    # delete old workspace
-    if os.path.exists(mw_workspace_dir) and os.path.isdir(mw_workspace_dir):
-        shutil.rmtree(mw_workspace_dir, ignore_errors = True)
-    # create a new one
-    os.makedirs(mw_workspace_dir, exist_ok = True)
-    # make srcpaths from incpaths
-    srcpaths = set()
-    for incpath_ in incpaths:
-        incpath = incpath_.replace("/", os.path.sep)
-        for dirpath, dirnames, filenames in os.walk(incpath):
-            for filename in filenames:
-                if filename.endswith(".c"):
-                    srcpaths.add(dirpath + os.path.sep + filename)
-    # launch individual src generation
-    with concurrent.futures.ThreadPoolExecutor(max_workers = 4) as executor:
-        running_tasks = [executor.submit(make_workspace_persrc, srcpath, incpaths) for srcpath in srcpaths]
-        for running_task in running_tasks:
-            running_task.result()   # block until completed
-
-
-def parse_functions_asm(srcpath: str):
-    in_comment = 0  # 1 if inside comment
-    sanitizedlines = []
-
-    # sanitize lines from comments
-    with open(srcpath, 'r') as f:
-        lines = f.readlines()
-        loc = len(lines)
-
-        for i in range(0, loc):
-            line = lines[i]
-            # trim start-end comments first
-            if asm_comment_pattern_1_start.search(line):
-                line = asm_comment_pattern_1_start.search(line).group(1)    # trim comment
-                in_comment = 1
-            elif in_comment != 0 and asm_comment_pattern_1_end.search(line):
-                line = asm_comment_pattern_1_end.search(line).group(1)
-                in_comment = 0
-            elif in_comment == 0:
-                # trim other comments if available
-                if asm_comment_pattern_2.search(line):
-                    line = asm_comment_pattern_2.search(line).group(1)
-                elif asm_comment_pattern_3.search(line):
-                    line = asm_comment_pattern_3.search(line).group(1)
-                else:   # the line is clean
-                    pass
-            elif in_comment == 1:   # inside comment
-                in_comment = 2      # ignore everything
-
-            # clean by strip and add newline
-            line = line.strip() + "\n"
-
-            if in_comment != 2: # will capture in_comment == 0 & 1
-                sanitizedlines += [line]
-
-    # parse functions: k:funcname - v:body
-    captured_func_body = {}
-    # get registers used: k:funcname - v:regs
-    # r1-r3  will be converted to r1, r2, r3
-    # r3, r1, r2 will be converted to r1, r2, r3
-    # sp -> r13, lr -> r14
-    captured_func_regs = {}
-    # get funcs called: k:funcname - v:calls
-    captured_func_calls = {}
-
-    funcname = ""
-    in_func = 0 # is probably 1 all the time after start
-
-    sanitizedloc = len(sanitizedlines)
-    for i in range(0, sanitizedloc):
-        sanitizedline = sanitizedlines[i]
-        if asm_func_pattern_1.search(sanitizedline):
-            funcname = asm_func_pattern_1.search(sanitizedline).group(1)
-            in_func = 1
-        elif in_func == 1:
-
-            # TODO
-
-
-        if in_func == 1:
-            captured_func_body
-
-            # TODO
-
-# genfile: generated src path
-# this will strip every comment and index every function from c sources
-def parse_functions_c_each_file(genfile: str):
     src_funcs = {}
     func_unit_tracker = {}
 
@@ -163,7 +79,6 @@ def parse_functions_c_each_file(genfile: str):
         comment = 0 # inside comment
 
         for i in range(0, loc):
-
             # inside a comment - do not process
             if comment_pattern_1.search(lines[i]):
                 comment = 2
@@ -272,19 +187,17 @@ def parse_functions_c_each_file(genfile: str):
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(src_funcs)))
     return src_funcs, func_unit_tracker
 
-def parse_functions_c_merge_result(genfiles: list):
+def parse_functions_c_write(srcpaths: list, incpaths: list):
     src_funcs = {}
-    src_funcs_wcomments = {}
     func_unit_tracker = {}
-    max_workers = int(os.cpu_count() / 2)
+    max_workers = int(os.cpu_count() / 4)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers = max_workers) as executor:
-        futures = [executor.submit(parse_functions_c_each_file, genfile) for genfile in genfiles]
+        futures = [executor.submit(parse_functions_c_persrc, srcpath, incpaths) for srcpath in srcpaths]
         for future in concurrent.futures.as_completed(futures):
             results = future.result()
             # merge dicts
             src_funcs.update(results[0])
-            src_funcs_wcomments.update(results[1])
             func_unit_tracker.update(results[2])
 
     # tidy up
@@ -293,15 +206,12 @@ def parse_functions_c_merge_result(genfiles: list):
     for trackerkey in func_unit_tracker.keys():
         if trackerkey not in src_funcs:
             src_funcs[trackerkey] = "{}"
-        if trackerkey not in src_funcs_wcomments:
-            src_funcs_wcomments[trackerkey] = "{}"
 
     # generate call stack estimation
     callstack_gen = {}
     # get them init first (so we can create files even if empty)
     for key in src_funcs.keys():
         callstack_gen[key] = set()
-
     src_funcs_v = src_funcs.copy()
     for func in src_funcs.keys():
         code = src_funcs[func].splitlines()
@@ -311,11 +221,9 @@ def parse_functions_c_merge_result(genfiles: list):
                 if key in cc:
                     callstack_gen[func].add(key)
 
-    # del old folder
+    # save lists of all callstacks
     if os.path.exists(callstack_gen_dir) and os.path.isdir(callstack_gen_dir):
         shutil.rmtree(callstack_gen_dir)
-
-    # make folder and list all callstack
     os.makedirs(callstack_gen_dir, exist_ok = True)
     for func in callstack_gen.keys():
         new_file = callstack_gen_dir + os.path.sep + func + ".txt"
@@ -326,54 +234,133 @@ def parse_functions_c_merge_result(genfiles: list):
     # save processed function bodies
     if os.path.exists(proc_funcbody_dir) and os.path.isdir(proc_funcbody_dir):
         shutil.rmtree(proc_funcbody_dir)
-
     os.makedirs(proc_funcbody_dir, exist_ok = True)
-
     for func in src_funcs.keys():
         new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
         with open(new_file, 'w') as wf:
             wf.write(src_funcs[func])
 
+def parse_functions_asm_persrc(srcpath: str):
+    in_comment = 0  # 1 if inside comment
+    sanitizedlines = []
 
-
-
-def parse_functions_c(srcpath: str):
+    # sanitize lines from comments
     with open(srcpath, 'r') as f:
         lines = f.readlines()
         loc = len(lines)
 
         for i in range(0, loc):
+            line = lines[i]
+            # trim start-end comments first
+            if asm_comment_pattern_1_start.search(line):
+                line = asm_comment_pattern_1_start.search(line).group(1)    # trim comment
+                in_comment = 1
+            elif in_comment != 0 and asm_comment_pattern_1_end.search(line):
+                line = asm_comment_pattern_1_end.search(line).group(1)
+                in_comment = 0
+            elif in_comment == 0:
+                # trim other comments if available
+                if asm_comment_pattern_2.search(line):
+                    line = asm_comment_pattern_2.search(line).group(1)
+                elif asm_comment_pattern_3.search(line):
+                    line = asm_comment_pattern_3.search(line).group(1)
+                else:   # the line is clean
+                    pass
+            elif in_comment == 1:   # inside comment
+                in_comment = 2      # ignore everything
 
-# type0 -> c, type1 -> asm
-def parse_functions_persrc(srcpath: str, type: int):
-    if type == 0:
-        # type0 -> c
-        parse_functions_c(srcpath)
-    elif type == 1:
-        # type1 -> asm
-        parse_functions_asm(srcpath)
+            # clean by strip and add newline
+            line = line.strip() + "\n"
 
+            if in_comment != 2: # will capture in_comment == 0 & 1
+                sanitizedlines += [line]
+
+    # parse functions: k:funcname - v:body
+    captured_func_body = {}
+    # get registers used: k:funcname - v:regs
+    # r1-r3  will be converted to r1, r2, r3
+    # r3, r1, r2 will be converted to r1, r2, r3
+    # sp -> r13, lr -> r14
+    captured_func_regs = {}
+    # get funcs called: k:funcname - v:calls
+    captured_func_calls = {}
+
+    funcname = ""
+    in_func = 0 # is probably 1 all the time after start
+
+    sanitizedloc = len(sanitizedlines)
+    for i in range(0, sanitizedloc):
+        sanitizedline = sanitizedlines[i]
+        if asm_func_pattern_1.search(sanitizedline):
+            funcname = asm_func_pattern_1.search(sanitizedline).group(1)
+            in_func = 1
+        elif in_func == 1:
+            pass
+            # TODO
+
+
+        if in_func == 1:
+            # captured_func_body
+            pass
+            # TODO
+
+
+def parse_functions_asm_write(srcpaths: list):
+    pass
+
+def parse_functions_asm(srcpaths: list):
+    pass
+    
 
 # now we will start parsing for all the functions (c and asm alike)
-def parse_functions():
-    # args
-    global pf_workspace_dir
-    # ready workspace
-    # delete old workspace
-    if os.path.exists(pf_workspace_dir) and os.path.isdir(pf_workspace_dir):
-        shutil.rmtree(pf_workspace_dir, ignore_errors = True)
-    # create a new one
-    os.makedirs(pf_workspace_dir, exist_ok = True)
+def parse_functions(srcpaths: list, incpaths: list):
+    global asm_ext
+    srcpaths_c = []
+    srcpaths_asm = []
+
+    for srcpath in srcpaths:
+        if srcpath.split(".")[-1] in asm_ext:   # asm file
+            srcpaths_asm.append(srcpath)
+        else:   # c file
+            srcpaths_c.append(srcpath)
+
+    parse_functions_asm_write(srcpaths_asm)   # generate all asm func bodies & callstack
+    parse_functions_c_write(srcpaths_c, incpaths)   # generate all c files and their func bodies & callstack
 
 
+# srcpaths: should return list of source files
+def parse_per_target_platform(target_platform: str, incpaths: list):
+    global asm_ext
+    # get extension
+    if target_platform not in ["armv7m", "rh850"]:
+        print(target_platform + " not supported")
+        quit()
+    elif target_platform == "rh850":
+        asm_ext.append("850")
+    elif target_platform == "armv7m":
+        asm_ext.append("s")
+        asm_ext.append("S")
+
+    # get source files
+    srcpaths = set()
+    for incpath_ in incpaths:
+        incpath = incpath_.replace("/", os.path.sep)
+        for dirpath, dirnames, filenames in os.walk(incpath):
+            for filename in filenames:
+                if filename.endswith(".c") or filename.endswith(".C") or filename.split(".")[-1] in asm_ext:
+                    srcpaths.add(dirpath + os.path.sep + filename)
+    
+    return srcpaths
 
 if __name__ == "__main__":
     print("hello")
     if len(sys.argv) <= 2:
         print("input needed: arg1 - target platform (armv7m, rh850), arg2+ - all of the source paths including all the files needed for macro")
+    
+    # get all the needed info
     target_platform = sys.argv[1]
-    if target_platform not in ["armv7m", "rh850"]:
-        print(target_platform + " not supported")
-        quit()
-    make_workspace(sys.argv[2:])
-    parse_functions()
+    incpaths = sys.argv[2:]
+    srcpaths = parse_per_target_platform(target_platform, incpaths)
+
+    # start parsing source files
+    parse_functions(srcpaths, incpaths)
