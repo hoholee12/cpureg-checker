@@ -46,6 +46,150 @@ asm_comment_pattern_3 = re.compile(r"(.*?)\/\/")        # //
 # _hello: -> matches
 asm_func_pattern_1 = re.compile(r"^(\w+):")
 
+
+listup = 0
+listup_set = set()
+bad_path_list = set()
+destructive_only = 0
+normality_count = 0 # doomed function if set 1
+
+# get caller flow
+def get_caller_flow(calling_path, func):
+    global normality_count
+    global bad_path_list
+
+    if listup == 1:
+        listup_set.add(func)
+
+    file_to_open = "calling_func_list\\" + func + ".txt"
+    try:
+        with open(file_to_open, 'r', encoding = "UTF-8") as f:
+            lines = f.readlines()
+            loc = len(lines)
+
+            if loc > 0:
+                for i in range(0, loc):
+                    next_calling_path = calling_path + "->" + func
+                    # check for potential loop before continuing
+                    loop_dict = {}
+                    for item in next_calling_path.split("->"):
+                        if loop_dict.get(item, None) != None:
+                            # dead end
+                            bad_path_list.add(item)
+                            if listup != 1:
+                                print("looping " + next_calling_path)
+                            return
+                        else:
+                            loop_dict[item] = 1
+                    # continue to the next round
+                    next_func = lines[i].strip()
+                    get_caller_flow(next_calling_path, next_func)
+
+            else:
+                # dead end... finish here
+                if listup != 1:
+                    bad_path_detected = 0
+                    for item in (calling_path + "->" + func).split("->")[1:-1]:
+                        if item in bad_path_list:
+                            bad_path_detected = 1
+                            break
+                    if bad_path_detected == 0:
+                        if destructive_only == 0:
+                            print(calling_path + "->" + func)
+                            normality_count += 1
+                    else:
+                        print("bad " + calling_path + "->" + func)
+                return
+    except:
+        if listup != 1:
+            bad_path_detected = 0
+            for item in (calling_path + "->" + func).split("->")[1:-1]:
+                if item in bad_path_list:
+                    bad_path_detected = 1
+                    break
+            if bad_path_detected == 0:
+                if destructive_only == 0:
+                    print(calling_path + "->" + func)
+                    normality_count += 1
+            else:
+                print("bad " + calling_path + "->" + func)
+            print("incomplete gen")
+        return
+
+# get callee flow
+def get_callee_flow(func):
+    global normality_count
+    global bad_path_list
+
+    test_files = []
+    # bring all the data back
+    for root, dirs, files in os.walk("calling_func_list"):
+        for file in files:
+            if file.endswith(".txt"):
+                test_files.append(os.path.join(root, file))
+    calling_func_gen = {}
+    for file in test_files:
+        with open(file, 'r', encoding = "UTF-8") as f:
+            lines = f.readlines()
+            loc = len(lines)
+
+            tc_func = os.path.basename(file).split(".")[0]
+            calling_func_gen[tc_func] = set()
+            for i in range(0, loc):
+                calling_func_gen[tc_func].add(lines[i].strip())
+
+    # do a iterative dfs search
+    mystack = []
+    mystack.append([func, ""])
+    while len(mystack) > 0:
+        top = mystack.pop()
+        called = top[0]
+        toprint = top[1]
+
+        if listup == 1:
+            listup_set.add(called)
+
+        found = 0
+        for key in calling_func_gen.keys():
+            # found a callee (key), now we append
+            if called in calling_func_gen[key]:
+                next_calling_path = toprint + "<-" + called
+                # check for potential loop before continuing
+                loop_dict = {}
+                ok_to_cont = 0
+                for item in next_calling_path.split("<-"):
+                    if loop_dict.get(item, None) != None:
+                        # dead end
+                        bad_path_list.add(item)
+                        ok_to_cont = 0
+                        if listup != 1:
+                            print("looping " + next_calling_path)
+                        break
+                    else:
+                        ok_to_cont = 1
+                        loop_dict[item] = 1
+                if ok_to_cont == 0:
+                    continue # skip
+                # continue to the next round
+                mystack.append([key, next_calling_path])
+                found = 1
+
+        # dead end
+        if found == 0:
+            if listup != 1:
+                bad_path_detected = 0
+                for item in (toprint + "<-" + called).split("<-")[1:-1]:
+                    if item in bad_path_list:
+                        bad_path_detected = 1
+                        break
+                if bad_path_detected == 0:
+                    if destructive_only == 0:
+                        print(toprint + "<-" + called)
+                        normality_count += 1
+                else:
+                    print("bad " + toprint + "<-" + called)
+
+
 # genfile: generated src path
 # this will strip every comment and index every function from c sources
 # uses mw_workspace_dir to temporarily store the preprocessed files
