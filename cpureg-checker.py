@@ -60,6 +60,9 @@ asm_pop_pattern = re.compile(r"popsp\s+(.*)")
 # -- dispose imm, list, (sometimes)[reg] (put r31(linkreg) on reg -> you get a pop & jmp back to caller)
 # -- no need to worry about [reg], all we need to focus is the <list, imm> <imm, list>
 # -- but we do need the info for [reg] for correct branch path.
+rh850_push_pattern = re.compile(r"pushsp\s+(.*)|prepare\s+(.*),\s*\w+") # we shall only capture the reg part for prepare-dispose
+rh850_pop_pattern = re.compile(r"popsp\s+(.*)|dispose\s+\w+,\s*(.*)")
+# TODO: we may need the dispose [reg] part for branch ident
 
 # for armv7m:
 # - push, pop -> probably not easy (user can become an asshole and change operands order but it is still valid)
@@ -69,6 +72,14 @@ asm_pop_pattern = re.compile(r"popsp\s+(.*)")
 # -- push {r4, lr} -> stmdb sp!, {r4, lr} (this means we can just treat stmdb sp! -> push)
 # -- pop {r4, pc} -> ldmia sp!, {r4, pc} (this means we can just treat ldmia sp! -> pop)
 # --- anything can be used besides sp! -> ignore because we will not give a fuck other than the stack.
+armv7m_push_pattern = re.compile(r"push\s+{((?:(?!,\s*lr)[^}])*).*}")
+armv7m_pop_pattern = re.compile(r"pop\s+{((?:(?!,\s*pc)[^}])*).*}")
+# we will just capture the whole thing without order. we will remove lr, pc in the process. (TODO: to be taken care of by branch ident)
+# we can care about the order thing later.(TODO: further parsing to individual regs maybe)
+
+asm_regname_intrinsics = {"sp" : "r3", "lr" : "r31"}
+rh850_regname_intrinsics = {"sp" : "r3", "lr" : "r31"}
+armv7m_regname_intrinsics = {"sp" : "r13", "lr" : "r14", "pc" : "r15"}
 
 
 listup = 0
@@ -408,6 +419,28 @@ def parse_functions_c_write(srcpaths: list, incpaths: list):
         with open(new_file, 'w') as wf:
             wf.write(src_funcs[func])
 
+# returns sorted list of strings of registers
+# takes care of , and -
+def parse_functions_asm_individual_reg(regs: str):
+    global asm_regname_intrinsics
+    reglist_ = regs.replace(" ", "").split(",")
+    reglist = set()
+    for reg_ in reglist_:
+        reg = reg_.lower().strip()
+        if "-" in reg:
+            regprefix = re.match(r"[a-z]+", reg).group(0)
+            regget = re.compile(r"[a-z]+([0-9]+)-[a-z]+([0-9]+)").search(reg)
+            regstart = regget.group(1)
+            regend = regget.group(2)
+            for i in range(regstart, regend+1):
+                reglist.add(regprefix + str(i))
+        else:
+            reglist.add(reg)
+
+    # sort it out
+    sorted_reglist = sorted(reglist)
+    return sorted_reglist
+
 def parse_functions_asm_persrc(srcpath: str):
     in_comment = 0  # 1 if inside comment
     sanitizedlines = []
@@ -464,7 +497,7 @@ def parse_functions_asm_persrc(srcpath: str):
             funcname = asm_func_pattern_1.search(sanitizedline).group(1)
             in_func = 1
         elif in_func == 1:
-            if 
+            # TODO 
 
 
 
@@ -506,6 +539,7 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
     global asm_ext
     global asm_push_pattern
     global asm_pop_pattern
+    global asm_regname_intrinsics
     # get extension
     if target_platform not in ["armv7m", "rh850"]:
         print(target_platform + " not supported")
@@ -514,15 +548,17 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
         # asm extension
         asm_ext.append("850")
         # asm push/pop pattern
-        asm_push_pattern = re.compile(r"pushsp\s+(.*)")
-        asm_pop_pattern = re.compile(r"popsp\s+(.*)")
+        asm_push_pattern = rh850_push_pattern
+        asm_pop_pattern = rh850_pop_pattern
+        asm_regname_intrinsics = rh850_regname_intrinsics
     elif target_platform == "armv7m":
         # asm extension
         asm_ext.append("s")
         asm_ext.append("S")
         # asm push/pop pattern
-        asm_push_pattern = re.compile(r"push\s+{(.*)}")
-        asm_pop_pattern = re.compile(r"pop\s+{(.*)}")
+        asm_push_pattern = armv7m_push_pattern
+        asm_pop_pattern = armv7m_pop_pattern
+        asm_regname_intrinsics = armv7m_regname_intrinsics
 
     # get source files
     srcpaths = set()
