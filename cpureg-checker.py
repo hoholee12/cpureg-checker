@@ -81,6 +81,14 @@ asm_regname_intrinsics = {"sp" : "r3", "lr" : "r31"}
 rh850_regname_intrinsics = {"sp" : "r3", "lr" : "r31"}
 armv7m_regname_intrinsics = {"sp" : "r13", "lr" : "r14", "pc" : "r15"}
 
+# we capture the branch op with the obj name. if obj name does not exist, we can find it in previous ops...
+asm_branch_pattern = re.compile(r"jr\s+(\w+)|jmp\s+(\w+)|jarl\s+(\w+)|b\w+\s+(\w+)")
+rh850_branch_pattern = re.compile(r"jr\s+(\w+)|jmp\s+(\w+)|jarl\s+(\w+)|b\w+\s+(\w+)")  # in rh850, theres no b ~ op
+armv7m_branch_pattern = re.compile(r"b\w*\s+(\w+)")    # armv7m branch opnames always start with b
+# this is to identify object address that is being passed to previous ops(mov), or in the branch op.
+# we need to identify this to figure out if its actually branching into a new function or not.
+# any code block that has a object name(blah:~) is considered a separate function.
+asm_genericop_pattern = re.compile(r"\w+\s+(.*)")
 
 listup = 0
 listup_set = set()
@@ -441,15 +449,49 @@ def parse_functions_asm_individual_reg(regs: str):
     sorted_reglist = sorted(reglist)
     return sorted_reglist
 
-def parse_functions_asm_persrc(srcpath: str):
+# we shall only get the func body here.
+# we shall do macro preprocessing just like the c source as well
+# TODO: 1. we shall parse for callstack first, 2. and then parse push/pop after that.
+def parse_functions_asm_persrc(srcpath: str, incpaths: list):
+    # we generate the c files first
+    mw_srcpath_fnonly = os.path.basename(srcpath).split(".")[0]
+    mw_srcpath_ext = os.path.basename(srcpath).split(".")[1]
+    lines = []
+    with open(srcpath, 'r') as f:
+        lines = f.readlines()
+    new_srcpath = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".pregen.c" # temporarily changed to c to preprocess this bitch
+    with open(new_srcpath, 'w') as f:
+        for i in lines:
+            parsedi = i
+            if (parsedi.strip().startswith(".if") or parsedi.strip().startswith(".elif") or 
+                parsedi.strip().startswith(".else") or parsedi.strip().startswith(".endif")):
+                parsedi.replace(".", "#")   # there is no other place that the . could be other than in the beginning, so this should be fine
+            f.write(parsedi)
+
+    # and then do some macro preprocessing
+    mw_gcc_arg = "gcc -E "
+    mw_gcc_arg_inc = " -I "
+    
+    genfile = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".generated." + mw_srcpath_ext
+    # check and remove old file
+    if os.path.exists(genfile) and os.path.isfile(genfile):
+        os.remove(genfile)
+    # generate args
+    mw_gcc_arg += new_srcpath
+    for i in incpaths:
+        mw_gcc_arg += mw_gcc_arg_inc + i
+    mw_gcc_arg += " -o " + genfile
+    # run gcc
+    subprocess.call(mw_gcc_arg, shell = True)
+
+    # file have been preprocessed. now we start parsing
     in_comment = 0  # 1 if inside comment
     sanitizedlines = []
 
     # sanitize lines from comments first
-    with open(srcpath, 'r') as f:
+    with open(genfile, 'r') as f:
         lines = f.readlines()
         loc = len(lines)
-
         for i in range(0, loc):
             line = lines[i]
             # trim start-end comments first
@@ -477,38 +519,51 @@ def parse_functions_asm_persrc(srcpath: str):
                 sanitizedlines += [line]
 
     # we sanitized it, now we capture functions on it
-    # parse functions: k:funcname - v:body
-    captured_func_body = {}
-    # get registers used: k:funcname - v:regs
-    # r1-r3  will be converted to r1, r2, r3
-    # r3, r1, r2 will be converted to r1, r2, r3
-    # sp -> r13, lr -> r14
-    captured_func_regs = {}
-    # get funcs called: k:funcname - v:calls
-    captured_func_calls = {}
-
-    funcname = ""
-    in_func = 0 # is probably 1 all the time after start
-
     sanitizedloc = len(sanitizedlines)
+
+    # lets skim and find all the function names first
+    pre_func_names = set()
     for i in range(0, sanitizedloc):
         sanitizedline = sanitizedlines[i]
         if asm_func_pattern_1.search(sanitizedline):
+            pre_func_names.add(asm_func_pattern_1.search(sanitizedline).group(1))
+    # and thats it...
+    
+    # parse functions: k:funcname - v:body
+    asm_funcs = {"" : []}
+    funcname = ""
+    in_func = 0 # is probably 1 all the time after start
+    branch_to_name = ""
+    for i in range(0, sanitizedloc):
+        sanitizedline = sanitizedlines[i]
+        if in_func == 0 and asm_func_pattern_1.search(sanitizedline):
             funcname = asm_func_pattern_1.search(sanitizedline).group(1)
+            # if funcname was not encountered before, init
+            if asm_funcs.get(funcname, None) == None:
+                asm_funcs[funcname] = []
             in_func = 1
+
         elif in_func == 1:
-            # TODO 
+            # capture func body
+            asm_funcs[funcname].append(sanitizedline)
+            # check if the func body contains any branch to other known funcs
+            if asm_genericop_pattern.search(sanitizedline):
+                genstrlist = asm_genericop_pattern.search(sanitizedline).replace(" ", "").split(",")
+                for genstr in genstrlist:
+                    if genstr in pre_func_names:
+                        branch_to_name = genstr # branch found!!
+                        break
 
+            if asm_branch_pattern.search(sanitizedline):
+                genstr = asm_branch_pattern.search(sanitizedline).group(1)
+                if genstr in pre_func_names:
+                    branch_to_name = genstr
+                if branch_to_name != "":    # if a branch name exists, it (almost) 100% means the function body has ended (TODO: not sure)
+                    branch_to_name = ""
+                    in_func = 0
 
-
-            pass
-
-
-        # final write
-        if in_func == 1:
-            # captured_func_body
-            pass
             # TODO
+            
 
 
 def parse_functions_asm_write(srcpaths: list):
@@ -540,6 +595,7 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
     global asm_push_pattern
     global asm_pop_pattern
     global asm_regname_intrinsics
+    global asm_branch_pattern
     # get extension
     if target_platform not in ["armv7m", "rh850"]:
         print(target_platform + " not supported")
@@ -551,6 +607,7 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
         asm_push_pattern = rh850_push_pattern
         asm_pop_pattern = rh850_pop_pattern
         asm_regname_intrinsics = rh850_regname_intrinsics
+        asm_branch_pattern = rh850_branch_pattern
     elif target_platform == "armv7m":
         # asm extension
         asm_ext.append("s")
@@ -559,6 +616,7 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
         asm_push_pattern = armv7m_push_pattern
         asm_pop_pattern = armv7m_pop_pattern
         asm_regname_intrinsics = armv7m_regname_intrinsics
+        asm_branch_pattern = armv7m_branch_pattern
 
     # get source files
     srcpaths = set()
