@@ -6,12 +6,20 @@
     "configurations": [
 
         {
-            "name": "cpureg-checker.py",
+            "name": "launch_armv7m",
             "type": "debugpy",
             "request": "launch",
             "program": "cpureg-checker.py",
             "console": "integratedTerminal",
-            "args": "generate testsrc testsrc/src testsrc/inc"
+            "args": "armv7m testsrc/src testsrc/armv7m_inc"
+        },
+        {
+            "name": "launch_rh850",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "cpureg-checker.py",
+            "console": "integratedTerminal",
+            "args": "rh850 testsrc/src testsrc/rh850_inc"
         }
     ]
 }

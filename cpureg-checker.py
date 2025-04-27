@@ -47,6 +47,30 @@ asm_comment_pattern_3 = re.compile(r"(.*?)\/\/")        # //
 asm_func_pattern_1 = re.compile(r"^(\w+):")
 
 
+# pattern for push pop detection (make sure it covers the inline assembly as well)
+# no need to worry for succeeding comments (they are completely removed at this stage)
+asm_push_pattern = re.compile(r"pushsp\s+(.*)")
+asm_pop_pattern = re.compile(r"popsp\s+(.*)")
+
+
+# for rh850:
+# - pushsp, popsp -> the operands do not change order, so its very easy to map
+# - prepare, dispose:
+# -- prepare list(regs separated with comma), imm(number of words to reserve stack space)
+# -- dispose imm, list, (sometimes)[reg] (put r31(linkreg) on reg -> you get a pop & jmp back to caller)
+# -- no need to worry about [reg], all we need to focus is the <list, imm> <imm, list>
+# -- but we do need the info for [reg] for correct branch path.
+
+# for armv7m:
+# - push, pop -> probably not easy (user can become an asshole and change operands order but it is still valid)
+# -- will also need to be careful, user can do "push {reg, lr}, pop {reg, pc}" which is similar to "dispose imm, list, [reg]"
+# -- we will also need the info for {pc} for correct branch path.
+# - stmdb, ldmia -> advanced version of push, pop.
+# -- push {r4, lr} -> stmdb sp!, {r4, lr} (this means we can just treat stmdb sp! -> push)
+# -- pop {r4, pc} -> ldmia sp!, {r4, pc} (this means we can just treat ldmia sp! -> pop)
+# --- anything can be used besides sp! -> ignore because we will not give a fuck other than the stack.
+
+
 listup = 0
 listup_set = set()
 bad_path_list = set()
@@ -388,7 +412,7 @@ def parse_functions_asm_persrc(srcpath: str):
     in_comment = 0  # 1 if inside comment
     sanitizedlines = []
 
-    # sanitize lines from comments
+    # sanitize lines from comments first
     with open(srcpath, 'r') as f:
         lines = f.readlines()
         loc = len(lines)
@@ -419,6 +443,7 @@ def parse_functions_asm_persrc(srcpath: str):
             if in_comment != 2: # will capture in_comment == 0 & 1
                 sanitizedlines += [line]
 
+    # we sanitized it, now we capture functions on it
     # parse functions: k:funcname - v:body
     captured_func_body = {}
     # get registers used: k:funcname - v:regs
@@ -439,10 +464,14 @@ def parse_functions_asm_persrc(srcpath: str):
             funcname = asm_func_pattern_1.search(sanitizedline).group(1)
             in_func = 1
         elif in_func == 1:
+            if 
+
+
+
             pass
-            # TODO
 
 
+        # final write
         if in_func == 1:
             # captured_func_body
             pass
@@ -475,15 +504,25 @@ def parse_functions(srcpaths: list, incpaths: list):
 # srcpaths: should return list of source files
 def parse_per_target_platform(target_platform: str, incpaths: list):
     global asm_ext
+    global asm_push_pattern
+    global asm_pop_pattern
     # get extension
     if target_platform not in ["armv7m", "rh850"]:
         print(target_platform + " not supported")
         quit()
     elif target_platform == "rh850":
+        # asm extension
         asm_ext.append("850")
+        # asm push/pop pattern
+        asm_push_pattern = re.compile(r"pushsp\s+(.*)")
+        asm_pop_pattern = re.compile(r"popsp\s+(.*)")
     elif target_platform == "armv7m":
+        # asm extension
         asm_ext.append("s")
         asm_ext.append("S")
+        # asm push/pop pattern
+        asm_push_pattern = re.compile(r"push\s+{(.*)}")
+        asm_pop_pattern = re.compile(r"pop\s+{(.*)}")
 
     # get source files
     srcpaths = set()
