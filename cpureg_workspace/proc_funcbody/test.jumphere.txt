@@ -1,0 +1,6 @@
+void jumphere(int a, int b){
+    printf("a = %d, b = %d\n", a, b);
+
+    __asm volatile("popsp r4-r4");
+
+}

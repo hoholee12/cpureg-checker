@@ -88,7 +88,7 @@ armv7m_branch_pattern = re.compile(r"b\w*\s+(\w+)")    # armv7m branch opnames a
 # this is to identify object address that is being passed to previous ops(mov), or in the branch op.
 # we need to identify this to figure out if its actually branching into a new function or not.
 # any code block that has a object name(blah:~) is considered a separate function.
-asm_genericop_pattern = re.compile(r"\w+\s+(.*)")
+asm_genericop_pattern = re.compile(r"^\s*\w+\s+(.*)")
 
 listup = 0
 listup_set = set()
@@ -524,22 +524,24 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
             pre_func_names.add(asm_func_pattern_1.search(sanitizedline).group(1))
     # and thats it...
     
-    # parse functions: k:funcname - v:body
+    # parse functions: k:func_name - v:body
     asm_funcs = {}
     func_unit_tracker = {}
-    funcname = ""
+    func_name = ""
     in_func = 0 # once it is 1, it will never be 0 again until EOF
     for i in range(0, sanitizedloc):
         sanitizedline = sanitizedlines[i]
         if asm_func_pattern_1.search(sanitizedline):    # will run regardless of in_func.
-            funcname = asm_func_pattern_1.search(sanitizedline).group(1)
+            func_name = asm_func_pattern_1.search(sanitizedline).group(1)
             # if funcname was not encountered before, init
-            if asm_funcs.get(funcname, None) == None:
-                asm_funcs[funcname] = []
+            if asm_funcs.get(func_name, None) != None:
+                asm_funcs[func_name] += sanitizedline
+            else:
+                asm_funcs[func_name] = sanitizedline
             in_func = 1
         elif in_func == 1:  # will always run, once in_func changed to 1 & is not on a function name
             # capture func body
-            asm_funcs[funcname].append(sanitizedline)
+            asm_funcs[func_name] += sanitizedline
             # check if the func body contains any branch to other known funcs
             # we must not categorize branch and non-branch op, 
             # because the address to the branch can be inserted & used at any time...
@@ -547,7 +549,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
                 genstrlist = asm_genericop_pattern.search(sanitizedline).group(1).replace(" ", "").split(",")
                 for genstr in genstrlist:
                     if genstr in pre_func_names:
-                        func_unit_tracker[funcname].append(genstr)  # add to tracker
+                        func_unit_tracker[func_name].append(genstr)  # add to tracker
 
     return asm_funcs, func_unit_tracker
             
@@ -604,8 +606,8 @@ def parse_functions(srcpaths: list, incpaths: list):
         else:   # c file
             srcpaths_c.append(srcpath)
 
-    parse_functions_asm_write(srcpaths_asm, incpaths)   # generate all asm func bodies & callstack
     parse_functions_c_write(srcpaths_c, incpaths)   # generate all c files and their func bodies & callstack
+    parse_functions_asm_write(srcpaths_asm, incpaths)   # generate all asm func bodies & callstack
 
 # srcpaths: should return list of source files
 def parse_per_target_platform(target_platform: str, incpaths: list):
