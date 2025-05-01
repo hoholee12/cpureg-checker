@@ -451,6 +451,7 @@ def parse_functions_asm_individual_reg(regs: str):
 
 # we shall only get the func body here.
 # we shall do macro preprocessing just like the c source as well
+# returns asm_funcs(body), func_unit_tracker(for caller stack)
 # TODO: 1. we shall parse for callstack first, 2. and then parse push/pop after that.
 def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     # we generate the c files first
@@ -530,41 +531,32 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     # and thats it...
     
     # parse functions: k:funcname - v:body
-    asm_funcs = {"" : []}
+    asm_funcs = {}
+    func_unit_tracker = {}
     funcname = ""
-    in_func = 0 # is probably 1 all the time after start
-    branch_to_name = ""
+    in_func = 0 # once it is 1, it will never be 0 again until EOF
     for i in range(0, sanitizedloc):
         sanitizedline = sanitizedlines[i]
-        if in_func == 0 and asm_func_pattern_1.search(sanitizedline):
+        if asm_func_pattern_1.search(sanitizedline):    # will run regardless of in_func.
             funcname = asm_func_pattern_1.search(sanitizedline).group(1)
             # if funcname was not encountered before, init
             if asm_funcs.get(funcname, None) == None:
                 asm_funcs[funcname] = []
             in_func = 1
-
-        elif in_func == 1:
+        elif in_func == 1:  # will always run, once in_func changed to 1 & is not on a function name
             # capture func body
             asm_funcs[funcname].append(sanitizedline)
             # check if the func body contains any branch to other known funcs
+            # we must not categorize branch and non-branch op, 
+            # because the address to the branch can be inserted & used at any time...
             if asm_genericop_pattern.search(sanitizedline):
                 genstrlist = asm_genericop_pattern.search(sanitizedline).replace(" ", "").split(",")
                 for genstr in genstrlist:
                     if genstr in pre_func_names:
-                        branch_to_name = genstr # branch found!!
-                        break
+                        func_unit_tracker[funcname].append(genstr)  # add to tracker
 
-            if asm_branch_pattern.search(sanitizedline):
-                genstr = asm_branch_pattern.search(sanitizedline).group(1)
-                if genstr in pre_func_names:
-                    branch_to_name = genstr
-                if branch_to_name != "":    # if a branch name exists, it (almost) 100% means the function body has ended (TODO: not sure)
-                    branch_to_name = ""
-                    in_func = 0
-
-            # TODO
+    return asm_funcs, func_unit_tracker
             
-
 
 def parse_functions_asm_write(srcpaths: list):
     pass
