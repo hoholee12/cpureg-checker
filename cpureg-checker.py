@@ -233,6 +233,14 @@ def get_callee_flow(func):
                     print("bad " + toprint + "<-" + called)
 
 
+def parse_functions_pre_asm(srcpaths: list, incpaths: list):
+    listofpotentialsymbols = []
+    return listofpotentialsymbols
+
+def parse_functions_pre_c(srcpaths: list, incpaths: list):
+    listofpotentialsymbols = []
+    return listofpotentialsymbols
+
 # genfile: generated src path
 # this will strip every comment and index every function from c sources
 # uses mw_workspace_dir to temporarily store the preprocessed files
@@ -374,11 +382,13 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(src_funcs)))
     return src_funcs, func_unit_tracker
 
-def parse_functions_c_write(srcpaths: list, incpaths: list):
+def parse_functions_c_write(srcpaths: list, incpaths: list, symbols: list):
     src_funcs = {}
     func_unit_tracker = {}
     max_workers = int(os.cpu_count() / 4)
 
+    # TODO: we need to separate src_funcs and func_unit_tracker generator
+    # src_funcs should go in the pre_c
     with concurrent.futures.ThreadPoolExecutor(max_workers = max_workers) as executor:
         futures = [executor.submit(parse_functions_c_persrc, srcpath, incpaths) for srcpath in srcpaths]
         for future in concurrent.futures.as_completed(futures):
@@ -554,11 +564,13 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     return asm_funcs, func_unit_tracker
             
 
-def parse_functions_asm_write(srcpaths: list, incpaths: list):
+def parse_functions_asm_write(srcpaths: list, incpaths: list, symbols: list):
     asm_funcs = {}
     func_unit_tracker = {}
     max_workers = int(os.cpu_count() / 4)
 
+    # TODO: we need to separate asm_funcs and func_unit_tracker generator
+    # asm_funcs should go in the pre_asm
     with concurrent.futures.ThreadPoolExecutor(max_workers = max_workers) as executor:
         futures = [executor.submit(parse_functions_asm_persrc, srcpath, incpaths) for srcpath in srcpaths]
         for future in concurrent.futures.as_completed(futures):
@@ -606,8 +618,10 @@ def parse_functions(srcpaths: list, incpaths: list):
         else:   # c file
             srcpaths_c.append(srcpath)
 
-    parse_functions_c_write(srcpaths_c, incpaths)   # generate all c files and their func bodies & callstack
-    parse_functions_asm_write(srcpaths_asm, incpaths)   # generate all asm func bodies & callstack
+    listofpotentialsymbols = parse_functions_pre_asm(srcpaths_asm, incpaths)
+    listofpotentialsymbols += parse_functions_pre_c(srcpaths_c, incpaths)
+    parse_functions_c_write(srcpaths_c, incpaths, listofpotentialsymbols)   # generate all c files and their func bodies & callstack
+    parse_functions_asm_write(srcpaths_asm, incpaths, listofpotentialsymbols)   # generate all asm func bodies & callstack
 
 # srcpaths: should return list of source files
 def parse_per_target_platform(target_platform: str, incpaths: list):
