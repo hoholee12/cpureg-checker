@@ -7,10 +7,10 @@ import re
 
 # args
 mw_workspace_dir = "cpureg_workspace"
-pf_workspace_dir = "cpureg_parsed"
-callstack_gen_dir = "callstack_gen"
-proc_funcbody_dir = "proc_funcbody"
-proc_funcbody_asm_dir = "proc_funcbody_asm"
+pf_workspace_dir = mw_workspace_dir + os.path.sep + "parsed_gen"
+callstack_gen_dir = mw_workspace_dir + os.path.sep + "callstack_gen"
+proc_funcbody_dir = mw_workspace_dir + os.path.sep + "proc_funcbody"
+proc_funcbody_asm_dir = mw_workspace_dir + os.path.sep + "proc_funcbody_asm"
 
 # asm extensions
 asm_ext = []
@@ -385,7 +385,7 @@ def parse_functions_c_write(srcpaths: list, incpaths: list):
             results = future.result()
             # merge dicts
             src_funcs.update(results[0])
-            func_unit_tracker.update(results[2])
+            func_unit_tracker.update(results[1])
 
     # tidy up
     # anything that is in function tracker but not in the body capture, is probably a one liner empty function
@@ -409,9 +409,6 @@ def parse_functions_c_write(srcpaths: list, incpaths: list):
                     callstack_gen[func].add(key)
 
     # save lists of all callstacks
-    if os.path.exists(callstack_gen_dir) and os.path.isdir(callstack_gen_dir):
-        shutil.rmtree(callstack_gen_dir)
-    os.makedirs(callstack_gen_dir, exist_ok = True)
     for func in callstack_gen.keys():
         new_file = callstack_gen_dir + os.path.sep + func + ".txt"
         with open(new_file, 'w') as wf:
@@ -419,9 +416,6 @@ def parse_functions_c_write(srcpaths: list, incpaths: list):
                 wf.write(calling + "\n")
 
     # save processed function bodies
-    if os.path.exists(proc_funcbody_dir) and os.path.isdir(proc_funcbody_dir):
-        shutil.rmtree(proc_funcbody_dir)
-    os.makedirs(proc_funcbody_dir, exist_ok = True)
     for func in src_funcs.keys():
         new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
         with open(new_file, 'w') as wf:
@@ -550,7 +544,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
             # we must not categorize branch and non-branch op, 
             # because the address to the branch can be inserted & used at any time...
             if asm_genericop_pattern.search(sanitizedline):
-                genstrlist = asm_genericop_pattern.search(sanitizedline).replace(" ", "").split(",")
+                genstrlist = asm_genericop_pattern.search(sanitizedline).group(1).replace(" ", "").split(",")
                 for genstr in genstrlist:
                     if genstr in pre_func_names:
                         func_unit_tracker[funcname].append(genstr)  # add to tracker
@@ -569,7 +563,7 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list):
             results = future.result()
             # merge dicts
             asm_funcs.update(results[0])
-            func_unit_tracker.update(results[2])
+            func_unit_tracker.update(results[1])
 
     # generate call stack estimation
     callstack_gen = {}
@@ -586,9 +580,6 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list):
                     callstack_gen[func].add(key)
 
     # save lists of all callstacks
-    if os.path.exists(callstack_gen_dir) and os.path.isdir(callstack_gen_dir):
-        shutil.rmtree(callstack_gen_dir)
-    os.makedirs(callstack_gen_dir, exist_ok = True)
     for func in callstack_gen.keys():
         new_file = callstack_gen_dir + os.path.sep + func + ".txt"
         with open(new_file, 'w') as wf:
@@ -596,9 +587,6 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list):
                 wf.write(calling + "\n")
 
     # save processed function bodies
-    if os.path.exists(proc_funcbody_dir) and os.path.isdir(proc_funcbody_dir):
-        shutil.rmtree(proc_funcbody_dir)
-    os.makedirs(proc_funcbody_dir, exist_ok = True)
     for func in asm_funcs.keys():
         new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
         with open(new_file, 'w') as wf:
@@ -659,6 +647,16 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
     
     return srcpaths
 
+def parse_workspace_cleanup():
+    # delete whole workspace directory
+    if os.path.exists(mw_workspace_dir) and os.path.isdir(mw_workspace_dir):
+        shutil.rmtree(mw_workspace_dir)
+    os.makedirs(mw_workspace_dir, exist_ok = True)
+    os.makedirs(pf_workspace_dir, exist_ok = True)
+    os.makedirs(callstack_gen_dir, exist_ok = True)
+    os.makedirs(proc_funcbody_dir, exist_ok = True)
+    os.makedirs(proc_funcbody_asm_dir, exist_ok = True)
+
 if __name__ == "__main__":
     print("hello")
     if len(sys.argv) <= 2:
@@ -668,6 +666,9 @@ if __name__ == "__main__":
     target_platform = sys.argv[1]
     incpaths = sys.argv[2:]
     srcpaths = parse_per_target_platform(target_platform, incpaths)
+
+    # cleanup workspace before running
+    parse_workspace_cleanup()
 
     # start parsing source files
     parse_functions(srcpaths, incpaths)

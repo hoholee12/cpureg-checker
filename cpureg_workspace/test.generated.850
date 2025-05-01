@@ -1,0 +1,16 @@
+# 1 "cpureg_workspace\\test.pregen.c"
+# 1 "<built-in>"
+# 1 "<command-line>"
+# 1 "cpureg_workspace\\test.pregen.c"
+# 1 "testsrc/rh850_inc/test.h" 1
+       
+# 2 "cpureg_workspace\\test.pregen.c" 2
+
+.global _hellothere
+_hellothere:
+.if (1 == 1)
+    pushsp r4-r4
+    mov r4, r0
+    mov 1, r1
+    lr _jumphere
+.endif
