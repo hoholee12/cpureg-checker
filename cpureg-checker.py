@@ -558,12 +558,51 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     return asm_funcs, func_unit_tracker
             
 
-def parse_functions_asm_write(srcpaths: list):
-    pass
+def parse_functions_asm_write(srcpaths: list, incpaths: list):
+    asm_funcs = {}
+    func_unit_tracker = {}
+    max_workers = int(os.cpu_count() / 4)
 
-def parse_functions_asm(srcpaths: list):
-    pass
-    
+    with concurrent.futures.ThreadPoolExecutor(max_workers = max_workers) as executor:
+        futures = [executor.submit(parse_functions_asm_persrc, srcpath, incpaths) for srcpath in srcpaths]
+        for future in concurrent.futures.as_completed(futures):
+            results = future.result()
+            # merge dicts
+            asm_funcs.update(results[0])
+            func_unit_tracker.update(results[2])
+
+    # generate call stack estimation
+    callstack_gen = {}
+    # get them init first (so we can create files even if empty)
+    for key in asm_funcs.keys():
+        callstack_gen[key] = set()
+    asm_funcs_v = asm_funcs.copy()
+    for func in asm_funcs.keys():
+        code = asm_funcs[func].splitlines()
+        for cline in code:
+            for key in asm_funcs_v.keys():
+                cc = re.split(r'[^a-zA-Z0-9_]+', cline)
+                if key in cc:
+                    callstack_gen[func].add(key)
+
+    # save lists of all callstacks
+    if os.path.exists(callstack_gen_dir) and os.path.isdir(callstack_gen_dir):
+        shutil.rmtree(callstack_gen_dir)
+    os.makedirs(callstack_gen_dir, exist_ok = True)
+    for func in callstack_gen.keys():
+        new_file = callstack_gen_dir + os.path.sep + func + ".txt"
+        with open(new_file, 'w') as wf:
+            for calling in callstack_gen[func]:
+                wf.write(calling + "\n")
+
+    # save processed function bodies
+    if os.path.exists(proc_funcbody_dir) and os.path.isdir(proc_funcbody_dir):
+        shutil.rmtree(proc_funcbody_dir)
+    os.makedirs(proc_funcbody_dir, exist_ok = True)
+    for func in asm_funcs.keys():
+        new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
+        with open(new_file, 'w') as wf:
+            wf.write(asm_funcs[func])
 
 # now we will start parsing for all the functions (c and asm alike)
 def parse_functions(srcpaths: list, incpaths: list):
@@ -577,9 +616,8 @@ def parse_functions(srcpaths: list, incpaths: list):
         else:   # c file
             srcpaths_c.append(srcpath)
 
-    parse_functions_asm_write(srcpaths_asm)   # generate all asm func bodies & callstack
+    parse_functions_asm_write(srcpaths_asm, incpaths)   # generate all asm func bodies & callstack
     parse_functions_c_write(srcpaths_c, incpaths)   # generate all c files and their func bodies & callstack
-
 
 # srcpaths: should return list of source files
 def parse_per_target_platform(target_platform: str, incpaths: list):
