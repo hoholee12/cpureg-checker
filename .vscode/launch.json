@@ -20,6 +20,14 @@
             "program": "cpureg-checker.py",
             "console": "integratedTerminal",
             "args": "rh850 testsrc/src testsrc/rh850_inc"
+        },
+        {
+            "name": "hazard",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "cpuhazard-checker.py",
+            "console": "integratedTerminal",
+            "args": ""
         }
     ]
 }
