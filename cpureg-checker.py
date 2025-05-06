@@ -440,8 +440,8 @@ def parse_functions_asm_individual_reg(regs: str):
     for reg_ in reglist_:
         reg = reg_.lower().strip()
         if "-" in reg:
-            regprefix = re.match(r"[a-z]+", reg).group(0)
-            regget = re.compile(r"[a-z]+([0-9]+)-[a-z]+([0-9]+)").search(reg)
+            regprefix = re.compile(r"([a-z]+) ").search(reg).group(1)  # opcode
+            regget = re.compile(r"[a-z]+([0-9]+)-[a-z]+([0-9]+)").search(reg)   # operands rx-ry
             regstart = regget.group(1)
             regend = regget.group(2)
             for i in range(regstart, regend+1):

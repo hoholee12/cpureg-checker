@@ -1,12 +1,7 @@
 import re
 
-# ================================
-# Multi-ISA RAW-Only Scheduler
-# Supports ARMv7-M (read-after-write hazard only)
-# Parses assembly, detects RAW hazards,
-# and performs latency-aware instruction reordering
-# preserving control-flow boundaries (branches/labels).
-# ================================
+# Multi-ISA assembly hazard checker - reordering scheduler
+# Parses assembly, detects RAW hazards, and performs latency-aware instruction reordering
 
 # Regular expressions for parsing
 REGEX_REGISTER = re.compile(r"[A-Za-z]{1,2}\d+")  # matches register names like R1, X2, $0
@@ -85,7 +80,7 @@ def split_blocks(parsed, isa, lines):
             current.append(instr)
             continue
         # if this line is a label, start a new block
-        if REGEX_LABEL.match(lines[instr['id']].strip()):
+        if REGEX_LABEL.search(lines[instr['id']].strip()):
             if current:
                 blocks.append(current)
             current = [instr]
@@ -118,6 +113,8 @@ def detect_raw(parsed):
 # --------------------------------
 # Schedule one block with latency-awareness
 # Ignores WAW/WAR, handles RAW only, branches at end
+# Why?: Modern ARM processors or any other decent ISAs for that matter 
+# generally do register renaming, In that case WAW/WAR will be nonexistant.
 def schedule_block(block, isa):
     cycle = 0
     ready = {}  # register -> ready cycle
