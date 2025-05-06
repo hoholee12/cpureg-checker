@@ -1,67 +1,72 @@
 import re
 
-# Multi-ISA assembly hazard checker - reordering scheduler
-# Parses assembly, detects RAW hazards, and performs latency-aware instruction reordering
+# ================================================
+# RAW‑Only Out‑of‑Order Scheduler (no NOPs)
+# • Supports ARMv7‑M (can be extended to other ISAs)
+# • Preserves labels and branches as block boundaries
+# • Performs latency‑aware reordering to satisfy RAW
+# ================================================
 
-# Regular expressions for parsing
-REGEX_REGISTER = re.compile(r"[A-Za-z]{1,2}\d+")  # matches register names like R1, X2, $0
-REGEX_SPLIT    = re.compile(r"[ ,()]+")             # splits opcode and operands
-REGEX_LABEL    = re.compile(r"^\w+:$")             # matches label lines ending with ':'
+# 1) Regular expressions for parsing
+REGEX_REGISTER = re.compile(r"[A-Za-z]{1,2}\d+")  # matches R1, X2, $0, etc.
+REGEX_SPLIT    = re.compile(r"[ ,()]+")           # splits opcode and operands
+REGEX_LABEL    = re.compile(r"^\w+:$")            # matches lines like "loop:"
 
-# ISA configuration (ARMv7-M example)
-# Only RAW hazards are considered. WAW and WAR are ignored.
+# 2) ISA configuration (example: ARMv7‑M)
+#    Only RAW hazards are considered; WAW/WAR are ignored.
 ISA_DB = {
     'armv7m': {
         'instrs': {
-            'MOV': {'read': [1], 'write': [0], 'latency': 1},  # MOV Rd, Rn
-            'ADD': {'read': [1,2], 'write': [0], 'latency': 1},  # ADD Rd, Rn, Rm
-            'SUB': {'read': [1,2], 'write': [0], 'latency': 1},  # SUB Rd, Rn, Rm
-            'MUL': {'read': [1,2], 'write': [0], 'latency': 3},  # MUL Rd, Rn, Rm
-            'LDR': {'read': [1],   'write': [0], 'latency': 2},  # LDR Rt, [Rn]
-            'STR': {'read': [0,1], 'write': [],  'latency': 2},  # STR Rt, [Rn]
-            'B':   {'read': [],    'write': [],  'latency': 1},  # B label
+            'MOV': {'read':[1],    'write':[0], 'latency':1},  # MOV Rd, Rn
+            'ADD': {'read':[1,2],  'write':[0], 'latency':1},  # ADD Rd, Rn, Rm
+            'SUB': {'read':[1,2],  'write':[0], 'latency':1},  # SUB Rd, Rn, Rm
+            'MUL': {'read':[1,2],  'write':[0], 'latency':3},  # MUL Rd, Rn, Rm
+            'LDR': {'read':[1],    'write':[0], 'latency':2},  # LDR Rt, [Rn]
+            'STR': {'read':[0,1],  'write':[],  'latency':2},  # STR Rt, [Rn]
+            'B':   {'read':[],     'write':[],  'latency':1},  # B label
         },
-        'nop': 'NOP'  # ARMv7-M no-op
+        'nop': None  # no-op placeholder is unused
     }
 }
 
-# Branch opcodes mark block boundaries
+# 3) Branch opcodes define block boundaries
 BRANCH_OPS = {
     'armv7m': {'B'}
 }
 
 # --------------------------------
-# Extract registers from an operand string
-# Uses REGEX_REGISTER to find all register names
-def extract_registers(op):
-    return REGEX_REGISTER.findall(op.upper())
+# Extract all register names from an operand string
+def extract_registers(operand):
+    return REGEX_REGISTER.findall(operand.upper())
 
 # --------------------------------
-# Parse a single assembly line into metadata
-# Returns None for blank lines, comments, or labels
-# Fields: id, opc, read set, write set, latency, text
-def parse_instr(line, idx, isa):
+# Parse one line of assembly into a metadata dict:
+#  • Returns LABEL entries for lines ending with “:”
+#  • Returns None for blank/comment/unsupported
+def parse_instr(line, index, isa):
     text = line.strip()
-    # skip empty, comment, or label lines
-    if not text or text.startswith(';') or REGEX_LABEL.match(text):
+    if not text or text.startswith(';'):
         return None
-    # split into opcode and operands
+    # label
+    if REGEX_LABEL.match(text):
+        return {'id':index, 'opc':'LABEL', 'text':text}
+    # split opcode+operands
     parts = REGEX_SPLIT.split(text)
-    opc = parts[0].upper()
-    # if opcode not supported, skip
+    opc   = parts[0].upper()
     if opc not in ISA_DB[isa]['instrs']:
         return None
     data = ISA_DB[isa]['instrs'][opc]
-    # determine read/write registers
     reads, writes = [], []
+    # collect read regs
     for i in data['read']:
-        if i < len(parts)-1:
+        if i+1 < len(parts):
             reads += extract_registers(parts[i+1])
+    # collect write regs
     for i in data['write']:
-        if i < len(parts)-1:
+        if i+1 < len(parts):
             writes += extract_registers(parts[i+1])
     return {
-        'id': idx,
+        'id': index,
         'opc': opc,
         'read': set(reads),
         'write': set(writes),
@@ -70,88 +75,105 @@ def parse_instr(line, idx, isa):
     }
 
 # --------------------------------
-# Split instructions into basic blocks
-# Blocks end at branch instructions or start at labels
-def split_blocks(parsed, isa, lines):
-    blocks, current = [], []
+# Split the parsed stream into basic blocks:
+#  • New block at each label
+#  • End block at each branch opcode
+def split_blocks(parsed, isa):
+    blocks = []
+    current = []
     for instr in parsed:
+        # preserve blank/comments
         if instr is None:
-            # preserve comments/labels
             current.append(instr)
             continue
-        # if this line is a label, start a new block
-        if REGEX_LABEL.search(lines[instr['id']].strip()):
+        # label starts a new block
+        if instr['opc'] == 'LABEL':
             if current:
                 blocks.append(current)
             current = [instr]
             continue
+        # otherwise add instruction
         current.append(instr)
-        # if branch instruction, close the block
+        # if it's a branch, close out this block
         if instr['opc'] in BRANCH_OPS[isa]:
             blocks.append(current)
             current = []
+    # append any trailing block
     if current:
         blocks.append(current)
     return blocks
 
 # --------------------------------
-# Detect RAW hazards only
-# Returns list of (i, j, register) where instruction i writes and j reads same register
+# Detect RAW hazards (purely for reporting or verification)
+# Returns list of tuples (i, j, register) meaning:
+#  instr i writes 'register', instr j reads it later.
 def detect_raw(parsed):
-    raws = []
+    hazards = []
     for i in range(len(parsed)):
         a = parsed[i]
-        if not a: continue
+        if not a or a['opc']=='LABEL': 
+            continue
         for j in range(i+1, len(parsed)):
             b = parsed[j]
-            if not b: continue
-            # RAW hazard if write set intersects read set
+            if not b or b['opc']=='LABEL':
+                continue
+            # true RAW: write-then-read
             for r in a['write'] & b['read']:
-                raws.append((i, j, r))
-    return raws
+                hazards.append((i, j, r))
+    return hazards
 
 # --------------------------------
-# Schedule one block with latency-awareness
-# Ignores WAW/WAR, handles RAW only, branches at end
-# Why?: Modern ARM processors or any other decent ISAs for that matter 
-# generally do register renaming, In that case WAW/WAR will be nonexistant.
+# Schedule one basic block *without* inserting NOPs:
+#  • Emits labels immediately
+#  • Reorders only non-branch insts to satisfy RAW readiness
+#  • Appends branch(s) at the end in original order
 def schedule_block(block, isa):
     cycle = 0
-    ready = {}  # register -> ready cycle
-    # separate non-branch and branch instructions
-    non_branch = [i for i in block if i and i['opc'] not in BRANCH_OPS[isa]]
-    branch_ins = [i for i in block if i and i['opc'] in BRANCH_OPS[isa]]
+    ready = {}   # map register -> cycle when it becomes ready
     scheduled = []
-    remaining = non_branch.copy()
-    nop = ISA_DB[isa]['nop']
-    # schedule non-branch instructions first
-    while remaining:
-        issued = False
-        for _ in range(len(remaining)):
-            instr = remaining.pop(0)
-            # check RAW readiness
+
+    # Separate labels / non-branches / branches
+    non_branch = []
+    branch_ins = []
+    for instr in block:
+        if instr is None:
+            # preserve blank/comment
+            scheduled.append(None)
+        elif instr['opc']=='LABEL':
+            scheduled.append(instr['text'])
+        elif instr['opc'] in BRANCH_OPS[isa]:
+            branch_ins.append(instr)
+        else:
+            non_branch.append(instr)
+
+    # Aggressively issue instructions as soon as RAW is satisfied
+    while non_branch:
+        for i, instr in enumerate(non_branch):
             if all(ready.get(r,0) <= cycle for r in instr['read']):
+                # can issue
                 scheduled.append(instr['text'])
-                # update register ready times
                 for w in instr['write']:
                     ready[w] = cycle + instr['latency']
-                issued = True
+                non_branch.pop(i)
                 break
-            remaining.append(instr)
-        # insert NOP if nothing could issue
-        if not issued:
-            scheduled.append(nop)
+        else:
+            # none ready yet: simulate stall by advancing time
+            cycle += 1
+            continue
         cycle += 1
-    # append branch instructions in original order
+
+    # Finally, append branch instructions in their original order
     for instr in branch_ins:
         scheduled.append(instr['text'])
         cycle += instr['latency']
-    return scheduled
+
+    # Strip out any None placeholders before returning
+    return [line for line in scheduled if line is not None]
 
 # ================================================
 # Example usage
 if __name__ == '__main__':
-    isa = 'armv7m'  # only ARMv7-M supported in this example
+    isa = 'armv7m'
     asm = [
         "MOV R1, R2",
         "ADD R3, R1, R4",
@@ -162,9 +184,19 @@ if __name__ == '__main__':
         "end:",
         "MOV R2, R3"
     ]
-    parsed = [parse_instr(l,i,isa) for i,l in enumerate(asm)]
-    blocks = split_blocks(parsed, isa, asm)
+
+    parsed = [parse_instr(line, idx, isa) for idx, line in enumerate(asm)]
+    blocks = split_blocks(parsed, isa)
+
+    # (optional) report RAW hazards
+    hazards = detect_raw(parsed)
+    if hazards:
+        print("RAW hazards detected:", hazards)
+
+    # schedule each block and print optimized code
     result = []
     for blk in blocks:
-        result += schedule_block(blk, isa) + ['']
+        result.extend(schedule_block(blk, isa))
+        result.append('')  # blank line between blocks
+
     print("\n".join(result))
