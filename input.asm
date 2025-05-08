@@ -7,8 +7,6 @@ SUB R7, R8, R9
 STR R5, [R7]
 STR R12, [R1]
 B label1
-
-label1:
 ADD R2, R10, R11
 LDR R14, [R3]
 STR R14, [R2]
