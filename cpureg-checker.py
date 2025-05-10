@@ -240,8 +240,10 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
     # do macro preprocess first
     mw_gcc_arg = "gcc -E "
     mw_gcc_arg_inc = " -I "
-    mw_srcpath_fnonly = os.path.basename(srcpath).split(".")[0]
-    genfile = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".generated.c"
+    mw_srcpath = os.path.basename(srcpath)
+    mw_srcpath_fnonly = mw_srcpath.split(".")[0]
+    mw_srcpath_ext = mw_srcpath.split(".")[1]
+    genfile = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".generated." + mw_srcpath_ext
     # check and remove old file
     if os.path.exists(genfile) and os.path.isfile(genfile):
         os.remove(genfile)
@@ -317,7 +319,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
                 if func_pattern.search(tmp_str_copy):
                     func_name = func_pattern.search(tmp_str_copy).group(1)
                     # another set to keep track of which file the function is located in
-                    func_unit_tracker_src[func_name] = os.path.basename(genfile).split(".")[0]
+                    func_unit_tracker_src[func_name] = mw_srcpath_fnonly
                 else:
                     tmp_str = ""
                     continue
@@ -425,8 +427,9 @@ def parse_functions_asm_individual_reg(regs: str):
 # TODO: 1. we shall parse for callstack first, 2. and then parse push/pop after that.
 def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     # we generate the c files first
-    mw_srcpath_fnonly = os.path.basename(srcpath).split(".")[0]
-    mw_srcpath_ext = os.path.basename(srcpath).split(".")[1]
+    mw_srcpath = os.path.basename(srcpath)
+    mw_srcpath_fnonly = mw_srcpath.split(".")[0]
+    mw_srcpath_ext = mw_srcpath.split(".")[1]
     lines = []
     with open(srcpath, 'r') as f:
         lines = f.readlines()
@@ -436,7 +439,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
             parsedi = i
             if (parsedi.strip().startswith(".if") or parsedi.strip().startswith(".elif") or 
                 parsedi.strip().startswith(".else") or parsedi.strip().startswith(".endif")):
-                parsedi.replace(".", "#")   # there is no other place that the . could be other than in the beginning, so this should be fine
+                parsedi = parsedi.replace(".", "#")   # there is no other place that the . could be other than in the beginning, so this should be fine
             f.write(parsedi)
 
     # and then do some macro preprocessing
@@ -518,20 +521,14 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
         elif in_func == 1:  # will always run, once in_func changed to 1 & is not on a function name
             # capture func body
             asm_funcs[func_name] += sanitizedline
-            # check if the func body contains any branch to other known funcs
-            # we must not categorize branch and non-branch op, 
-            # because the address to the branch can be inserted & used at any time...
-            if asm_genericop_pattern.search(sanitizedline):
-                genstrlist = asm_genericop_pattern.search(sanitizedline).group(1).replace(" ", "").split(",")
-                for genstr in genstrlist:
-                    if genstr in pre_func_names:
-                        func_unit_tracker_asm[func_name].append(genstr)  # add to tracker
+            # another set to keep track of which file the function is located in
+            func_unit_tracker_asm[func_name] = mw_srcpath_fnonly
 
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(asm_funcs)))
     return asm_funcs, func_unit_tracker_asm
             
 
-def parse_functions_asm_write(srcpaths: list, incpaths: list, symbols: list):
+def parse_functions_asm_write(srcpaths: list, incpaths: list):
     asm_funcs = {}
     func_unit_tracker_asm = {}  # this is just for grouping function set for each source file. nothing fancy
     max_workers = int(os.cpu_count() / 4)
@@ -554,8 +551,9 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list, symbols: list):
 
     return asm_funcs, func_unit_tracker_asm
 
-
+# TODO: process both asm and c src for callstack
 def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
+
     # generate call stack estimation
     callstack_gen = {}
     # get them init first (so we can create files even if empty)
