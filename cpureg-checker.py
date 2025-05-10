@@ -233,14 +233,6 @@ def get_callee_flow(func):
                     print("bad " + toprint + "<-" + called)
 
 
-def parse_functions_pre_asm(srcpaths: list, incpaths: list):
-    listofpotentialsymbols = []
-    return listofpotentialsymbols
-
-def parse_functions_pre_c(srcpaths: list, incpaths: list):
-    listofpotentialsymbols = []
-    return listofpotentialsymbols
-
 # genfile: generated src path
 # this will strip every comment and index every function from c sources
 # uses mw_workspace_dir to temporarily store the preprocessed files
@@ -262,7 +254,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
     subprocess.call(mw_gcc_arg, shell = True)
 
     src_funcs = {}
-    func_unit_tracker = {}
+    func_unit_tracker_src = {}
 
     with open(genfile, 'r', encoding = "UTF-8") as f:
         lines = f.readlines()
@@ -325,7 +317,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
                 if func_pattern.search(tmp_str_copy):
                     func_name = func_pattern.search(tmp_str_copy).group(1)
                     # another set to keep track of which file the function is located in
-                    func_unit_tracker[func_name] = os.path.basename(genfile).split(".")[0]
+                    func_unit_tracker_src[func_name] = os.path.basename(genfile).split(".")[0]
                 else:
                     tmp_str = ""
                     continue
@@ -380,14 +372,13 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
                     func_name = ""
 
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(src_funcs)))
-    return src_funcs, func_unit_tracker
+    return src_funcs, func_unit_tracker_src
 
-def parse_functions_c_write(srcpaths: list, incpaths: list, symbols: list):
+def parse_functions_c_write(srcpaths: list, incpaths: list):
     src_funcs = {}
-    func_unit_tracker = {}
+    func_unit_tracker_src = {}  # this is just for grouping function set for each source file. nothing fancy
     max_workers = int(os.cpu_count() / 4)
 
-    # TODO: we need to separate src_funcs and func_unit_tracker generator
     # src_funcs should go in the pre_c
     with concurrent.futures.ThreadPoolExecutor(max_workers = max_workers) as executor:
         futures = [executor.submit(parse_functions_c_persrc, srcpath, incpaths) for srcpath in srcpaths]
@@ -395,41 +386,16 @@ def parse_functions_c_write(srcpaths: list, incpaths: list, symbols: list):
             results = future.result()
             # merge dicts
             src_funcs.update(results[0])
-            func_unit_tracker.update(results[1])
+            func_unit_tracker_src.update(results[1])
 
     # tidy up
     # anything that is in function tracker but not in the body capture, is probably a one liner empty function
     # we shall include it in the src_funcs too
-    for trackerkey in func_unit_tracker.keys():
+    for trackerkey in func_unit_tracker_src.keys():
         if trackerkey not in src_funcs:
             src_funcs[trackerkey] = "{}"
 
-    # generate call stack estimation
-    callstack_gen = {}
-    # get them init first (so we can create files even if empty)
-    for key in src_funcs.keys():
-        callstack_gen[key] = set()
-    src_funcs_v = src_funcs.copy()
-    for func in src_funcs.keys():
-        code = src_funcs[func].splitlines()
-        for cline in code:
-            for key in src_funcs_v.keys():
-                cc = re.split(r'[^a-zA-Z0-9_]+', cline)
-                if key in cc:
-                    callstack_gen[func].add(key)
-
-    # save lists of all callstacks
-    for func in callstack_gen.keys():
-        new_file = callstack_gen_dir + os.path.sep + func + ".txt"
-        with open(new_file, 'w') as wf:
-            for calling in callstack_gen[func]:
-                wf.write(calling + "\n")
-
-    # save processed function bodies
-    for func in src_funcs.keys():
-        new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
-        with open(new_file, 'w') as wf:
-            wf.write(src_funcs[func])
+    return src_funcs, func_unit_tracker_src
 
 # returns sorted list of strings of registers
 # takes care of , and -
@@ -536,7 +502,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     
     # parse functions: k:func_name - v:body
     asm_funcs = {}
-    func_unit_tracker = {}
+    func_unit_tracker_asm = {}
     func_name = ""
     in_func = 0 # once it is 1, it will never be 0 again until EOF
     for i in range(0, sanitizedloc):
@@ -559,17 +525,17 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
                 genstrlist = asm_genericop_pattern.search(sanitizedline).group(1).replace(" ", "").split(",")
                 for genstr in genstrlist:
                     if genstr in pre_func_names:
-                        func_unit_tracker[func_name].append(genstr)  # add to tracker
+                        func_unit_tracker_asm[func_name].append(genstr)  # add to tracker
 
-    return asm_funcs, func_unit_tracker
+    print(os.path.basename(genfile) + " number of funcs found: " + str(len(asm_funcs)))
+    return asm_funcs, func_unit_tracker_asm
             
 
 def parse_functions_asm_write(srcpaths: list, incpaths: list, symbols: list):
     asm_funcs = {}
-    func_unit_tracker = {}
+    func_unit_tracker_asm = {}  # this is just for grouping function set for each source file. nothing fancy
     max_workers = int(os.cpu_count() / 4)
 
-    # TODO: we need to separate asm_funcs and func_unit_tracker generator
     # asm_funcs should go in the pre_asm
     with concurrent.futures.ThreadPoolExecutor(max_workers = max_workers) as executor:
         futures = [executor.submit(parse_functions_asm_persrc, srcpath, incpaths) for srcpath in srcpaths]
@@ -577,18 +543,29 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list, symbols: list):
             results = future.result()
             # merge dicts
             asm_funcs.update(results[0])
-            func_unit_tracker.update(results[1])
+            func_unit_tracker_asm.update(results[1])
 
+    # tidy up
+    # anything that is in function tracker but not in the body capture, is probably a one liner empty function
+    # we shall include it in the asm_funcs too
+    for trackerkey in func_unit_tracker_asm.keys():
+        if trackerkey not in asm_funcs:
+            asm_funcs[trackerkey] = "{}"
+
+    return asm_funcs, func_unit_tracker_asm
+
+
+def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
     # generate call stack estimation
     callstack_gen = {}
     # get them init first (so we can create files even if empty)
-    for key in asm_funcs.keys():
+    for key in funcs.keys():
         callstack_gen[key] = set()
-    asm_funcs_v = asm_funcs.copy()
-    for func in asm_funcs.keys():
-        code = asm_funcs[func].splitlines()
+    funcs_v = funcs.copy()
+    for func in funcs.keys():
+        code = funcs[func].splitlines()
         for cline in code:
-            for key in asm_funcs_v.keys():
+            for key in funcs_v.keys():
                 cc = re.split(r'[^a-zA-Z0-9_]+', cline)
                 if key in cc:
                     callstack_gen[func].add(key)
@@ -601,10 +578,10 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list, symbols: list):
                 wf.write(calling + "\n")
 
     # save processed function bodies
-    for func in asm_funcs.keys():
+    for func in funcs.keys():
         new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
         with open(new_file, 'w') as wf:
-            wf.write(asm_funcs[func])
+            wf.write(funcs[func])
 
 # now we will start parsing for all the functions (c and asm alike)
 def parse_functions(srcpaths: list, incpaths: list):
@@ -612,16 +589,23 @@ def parse_functions(srcpaths: list, incpaths: list):
     srcpaths_c = []
     srcpaths_asm = []
 
+    funcs = {}
+    func_unit_tracker = {}
+    funcs_v = {}
+    func_unit_tracker_v = {}
+
     for srcpath in srcpaths:
         if srcpath.split(".")[-1] in asm_ext:   # asm file
             srcpaths_asm.append(srcpath)
         else:   # c file
             srcpaths_c.append(srcpath)
 
-    listofpotentialsymbols = parse_functions_pre_asm(srcpaths_asm, incpaths)
-    listofpotentialsymbols += parse_functions_pre_c(srcpaths_c, incpaths)
-    parse_functions_c_write(srcpaths_c, incpaths, listofpotentialsymbols)   # generate all c files and their func bodies & callstack
-    parse_functions_asm_write(srcpaths_asm, incpaths, listofpotentialsymbols)   # generate all asm func bodies & callstack
+    funcs, func_unit_tracker = parse_functions_c_write(srcpaths_c, incpaths)   # generate all c files and their func bodies & callstack
+    funcs_v, func_unit_tracker_v = parse_functions_asm_write(srcpaths_asm, incpaths)   # generate all asm func bodies & callstack
+    funcs.update(funcs_v)
+    func_unit_tracker.update(func_unit_tracker_v)
+
+    parse_functions_process_callstack(funcs, func_unit_tracker) # generate callstack and write to file.
 
 # srcpaths: should return list of source files
 def parse_per_target_platform(target_platform: str, incpaths: list):
