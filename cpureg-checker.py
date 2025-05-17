@@ -688,8 +688,11 @@ def parse_workspace_cleanup():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-g", "--generate", type = str, choices = supported_platforms,
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-g", "--generate", type = str, choices = supported_platforms,
                          help = "generate preprocessed functions & callstacks")
+    group.add_argument("-p", "--process", action = "store_true", help = "process and spit out rights & wrongs on your code")
+
     parser.add_argument("-I", "--include", action = "append", metavar = "INCLUDE_PATH", type = str, help = "include path for the generate option")
     
     args = parser.parse_args()
@@ -699,13 +702,19 @@ if __name__ == "__main__":
     if target_platform:
         if len(incpaths) == 0:
             parser.error("generate requires at least one include path")
-    else:
+
+        
+        srcpaths = parse_per_target_platform(target_platform, incpaths)
+
+        # cleanup workspace before running
+        parse_workspace_cleanup()
+
+        # start parsing source files
+        parse_functions(srcpaths, incpaths)
+        
+    elif args.process:
         pass
+    else:
+        parser.print_help()
+        quit()
 
-    srcpaths = parse_per_target_platform(target_platform, incpaths)
-
-    # cleanup workspace before running
-    parse_workspace_cleanup()
-
-    # start parsing source files
-    parse_functions(srcpaths, incpaths)
