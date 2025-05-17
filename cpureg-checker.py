@@ -604,8 +604,7 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
 
     # save processed function bodies
     for func in funcs.keys():
-        new_file = (proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + "." 
-        + os.path.basename(func_unit_tracker[func]).split(".")[1] + ".txt")
+        new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
         with open(new_file, 'w') as wf:
             wf.write(funcs[func])
 
