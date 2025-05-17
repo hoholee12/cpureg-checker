@@ -319,7 +319,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
                 if func_pattern.search(tmp_str_copy):
                     func_name = func_pattern.search(tmp_str_copy).group(1)
                     # another set to keep track of which file the function is located in
-                    func_unit_tracker_src[func_name] = mw_srcpath_fnonly
+                    func_unit_tracker_src[func_name] = mw_srcpath
                 else:
                     tmp_str = ""
                     continue
@@ -511,7 +511,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     for i in range(0, sanitizedloc):
         sanitizedline = sanitizedlines[i]
         if asm_func_pattern_1.search(sanitizedline):    # will run regardless of in_func.
-            func_name = asm_func_pattern_1.search(sanitizedline).group(1)
+            func_name = asm_func_pattern_1.search(sanitizedline).group(1).strip("_")    # lets strip the starting '_'
             # if funcname was not encountered before, init
             if asm_funcs.get(func_name, None) != None:
                 asm_funcs[func_name] += sanitizedline
@@ -522,7 +522,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
             # capture func body
             asm_funcs[func_name] += sanitizedline
             # another set to keep track of which file the function is located in
-            func_unit_tracker_asm[func_name] = mw_srcpath_fnonly
+            func_unit_tracker_asm[func_name] = mw_srcpath
 
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(asm_funcs)))
     return asm_funcs, func_unit_tracker_asm
@@ -553,7 +553,7 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list):
 
 # TODO: process both asm and c src for callstack
 def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
-
+    global asm_ext
     # generate call stack estimation
     callstack_gen = {}
     # get them init first (so we can create files even if empty)
@@ -562,11 +562,34 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
     funcs_v = funcs.copy()
     for func in funcs.keys():
         code = funcs[func].splitlines()
-        for cline in code:
-            for key in funcs_v.keys():
-                cc = re.split(r'[^a-zA-Z0-9_]+', cline)
-                if key in cc:
-                    callstack_gen[func].add(key)
+        # before we continue, we need to make sure we dont include the header of the function
+        # otherwise we get a callstack that calls itself (which is wrong)
+        if os.path.basename(func_unit_tracker[func]).split(".")[1] in asm_ext:
+            # we are dealing with a asm file (we can just skip a line)
+            startrecord = 0
+            for cline in code:
+                if cline.strip().endswith(":"):
+                    startrecord = 1
+                if startrecord == 2:
+                    for key in funcs_v.keys():
+                        cc = [x.strip("_") for x in re.split(r'[^a-zA-Z0-9_]+', cline)]
+                        if key in cc:
+                            callstack_gen[func].add(key)
+                elif startrecord == 1:
+                    startrecord = 2 # skip a beat
+        else:
+            # we are dealing with a c file (we need to ignore code until opening bracket)
+            startrecord = 0
+            for cline in code:
+                cline_v = cline
+                if "{" in cline.strip():
+                    cline_v = re.compile(r".*({.*)").search(cline).group(1)
+                    startrecord = 1
+                if startrecord == 1:
+                    for key in funcs_v.keys():
+                        cc = [x.strip("_") for x in re.split(r'[^a-zA-Z0-9_]+', cline_v)]
+                        if key in cc:
+                            callstack_gen[func].add(key)
 
     # save lists of all callstacks
     for func in callstack_gen.keys():
