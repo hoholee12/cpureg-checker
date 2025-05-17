@@ -60,7 +60,8 @@ asm_pop_pattern = re.compile(r"popsp\s+(.*)")
 # -- dispose imm, list, (sometimes)[reg] (put r31(linkreg) on reg -> you get a pop & jmp back to caller)
 # -- no need to worry about [reg], all we need to focus is the <list, imm> <imm, list>
 # -- but we do need the info for [reg] for correct branch path.
-rh850_push_pattern = re.compile(r"pushsp\s+(.*)|prepare\s+(.*),\s*\w+") # we shall only capture the reg part for prepare-dispose
+rh850_push_pattern = re.compile(r"pushsp\s+(.*)|prepare\s+(.*),\s*\w+") 
+# we shall only capture the reg part for prepare-dispose
 rh850_pop_pattern = re.compile(r"popsp\s+(.*)|dispose\s+\w+,\s*(.*)")
 # TODO: we may need the dispose [reg] part for branch ident
 
@@ -74,7 +75,8 @@ rh850_pop_pattern = re.compile(r"popsp\s+(.*)|dispose\s+\w+,\s*(.*)")
 # --- anything can be used besides sp! -> ignore because we will not give a fuck other than the stack.
 armv7m_push_pattern = re.compile(r"push\s+{((?:(?!,\s*lr)[^}])*).*}")
 armv7m_pop_pattern = re.compile(r"pop\s+{((?:(?!,\s*pc)[^}])*).*}")
-# we will just capture the whole thing without order. we will remove lr, pc in the process. (TODO: to be taken care of by branch ident)
+# we will just capture the whole thing without order. we will remove lr, pc in the process. 
+# (TODO: to be taken care of by branch ident)
 # we can care about the order thing later.(TODO: further parsing to individual regs maybe)
 
 asm_regname_intrinsics = {"sp" : "r3", "lr" : "r31"}
@@ -433,13 +435,15 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     lines = []
     with open(srcpath, 'r') as f:
         lines = f.readlines()
-    new_srcpath = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".pregen.c" # temporarily changed to c to preprocess this bitch
+    new_srcpath = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".pregen.c" 
+    # temporarily changed to c to preprocess this bitch
     with open(new_srcpath, 'w') as f:
         for i in lines:
             parsedi = i
             if (parsedi.strip().startswith(".if") or parsedi.strip().startswith(".elif") or 
                 parsedi.strip().startswith(".else") or parsedi.strip().startswith(".endif")):
-                parsedi = parsedi.replace(".", "#")   # there is no other place that the . could be other than in the beginning, so this should be fine
+                parsedi = parsedi.replace(".", "#")   
+                # there is no other place that the . could be other than in the beginning, so this should be fine
             f.write(parsedi)
 
     # and then do some macro preprocessing
@@ -600,7 +604,8 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
 
     # save processed function bodies
     for func in funcs.keys():
-        new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
+        new_file = (proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + "." 
+        + os.path.basename(func_unit_tracker[func]).split(".")[1] + ".txt")
         with open(new_file, 'w') as wf:
             wf.write(funcs[func])
 
@@ -621,8 +626,10 @@ def parse_functions(srcpaths: list, incpaths: list):
         else:   # c file
             srcpaths_c.append(srcpath)
 
-    funcs, func_unit_tracker = parse_functions_c_write(srcpaths_c, incpaths)   # generate all c files and their func bodies & callstack
-    funcs_v, func_unit_tracker_v = parse_functions_asm_write(srcpaths_asm, incpaths)   # generate all asm func bodies & callstack
+    funcs, func_unit_tracker = parse_functions_c_write(srcpaths_c, incpaths)   
+    # generate all c files and their func bodies & callstack
+    funcs_v, func_unit_tracker_v = parse_functions_asm_write(srcpaths_asm, incpaths)   
+    # generate all asm func bodies & callstack
     funcs.update(funcs_v)
     func_unit_tracker.update(func_unit_tracker_v)
 
@@ -681,7 +688,8 @@ def parse_workspace_cleanup():
 if __name__ == "__main__":
     print("hello")
     if len(sys.argv) <= 2:
-        print("input needed: arg1 - target platform (armv7m, rh850), arg2+ - all of the source paths including all the files needed for macro")
+        print("input needed: arg1 - target platform (armv7m, rh850), arg2+ - all of the source paths "
+               + "including all the files needed for macro")
     
     # get all the needed info
     target_platform = sys.argv[1]
