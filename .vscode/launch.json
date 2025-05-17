@@ -11,7 +11,7 @@
             "request": "launch",
             "program": "cpureg-checker.py",
             "console": "integratedTerminal",
-            "args": "armv7m testsrc/src testsrc/armv7m_inc"
+            "args": "-g armv7m -I testsrc/src -I testsrc/armv7m_inc"
         },
         {
             "name": "launch_rh850",
@@ -19,7 +19,7 @@
             "request": "launch",
             "program": "cpureg-checker.py",
             "console": "integratedTerminal",
-            "args": "rh850 testsrc/src testsrc/rh850_inc"
+            "args": "-g rh850 -I testsrc/src -I testsrc/rh850_inc"
         },
         {
             "name": "hazard",

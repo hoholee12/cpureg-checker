@@ -4,6 +4,7 @@ import shutil
 import concurrent.futures
 import subprocess
 import re
+import argparse
 
 # args
 mw_workspace_dir = "cpureg_workspace"
@@ -16,6 +17,7 @@ proc_funcbody_asm_dir = mw_workspace_dir + os.path.sep + "proc_funcbody_asm"
 asm_ext = []
 
 # user args
+supported_platforms = ["armv7m", "rh850"]
 target_platform = ""
 
 # patterns for src comments
@@ -642,7 +644,7 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
     global asm_regname_intrinsics
     global asm_branch_pattern
     # get extension
-    if target_platform not in ["armv7m", "rh850"]:
+    if target_platform not in supported_platforms:
         print(target_platform + " not supported")
         quit()
     elif target_platform == "rh850":
@@ -685,14 +687,21 @@ def parse_workspace_cleanup():
     os.makedirs(proc_funcbody_asm_dir, exist_ok = True)
 
 if __name__ == "__main__":
-    print("hello")
-    if len(sys.argv) <= 2:
-        print("input needed: arg1 - target platform (armv7m, rh850), arg2+ - all of the source paths "
-               + "including all the files needed for macro")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-g", "--generate", type = str, choices = supported_platforms,
+                         help = "generate preprocessed functions & callstacks")
+    parser.add_argument("-I", "--include", action = "append", metavar = "INCLUDE_PATH", type = str, help = "include path for the generate option")
     
-    # get all the needed info
-    target_platform = sys.argv[1]
-    incpaths = sys.argv[2:]
+    args = parser.parse_args()
+    target_platform = args.generate
+    incpaths = args.include or []
+
+    if target_platform:
+        if len(incpaths) == 0:
+            parser.error("generate requires at least one include path")
+    else:
+        pass
+
     srcpaths = parse_per_target_platform(target_platform, incpaths)
 
     # cleanup workspace before running
