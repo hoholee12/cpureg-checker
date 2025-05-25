@@ -660,6 +660,50 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
     
     return srcpaths
 
+# asm_func is a giant string with newlines as linebreak
+# this returns list of funcs broken down by branch ops
+# i dont intend to save this anywhere
+def parse_functions_asm_breakdown_branches(asm_func: str):
+    breakdownlist = []
+    # asm_func.splitlines(keepends = True)
+    tmplines = asm_func.split('\n') # split the giant string
+    lines = [tmpline + '\n' for tmpline in tmplines]    # add the newline back in
+    loc = len(lines)
+    tmpstr = ""
+    for i in range(0, loc):
+        if asm_branch_pattern.search(lines[i]):
+            breakdownlist.append(tmpstr)
+            continue
+        else:
+            tmpstr += lines[i]
+    if tmpstr != "":
+        breakdownlist.append(tmpstr)
+    return breakdownlist
+
+# TODO: make a reassembler
+# logic:
+# 1. old lines[0] -> new lines[0]
+# 2. old branch
+# 3. old lines[1] -> new lines[1]
+def parse_functions_asm_reassemble_branches(old_asm_func: str, breakdownlist: list):
+    new_asm_func = ""
+    # asm_func.splitlines(keepends = True)
+    tmplines = old_asm_func.split('\n') # split the giant string
+    lines = [tmpline + '\n' for tmpline in tmplines]    # add the newline back in
+    loc = len(lines)
+    new_asm_func = ""
+    locswitch = 0
+    breakdownindex = 0
+    for i in range(0, loc):
+        if asm_branch_pattern.search(lines[i]):
+            new_asm_func += lines[i]
+            locswitch = 0
+        elif locswitch == 0:
+            new_asm_func += breakdownlist[breakdownindex]
+            locswitch = 1
+    
+    return new_asm_func
+
 def parse_workspace_cleanup():
     # delete whole workspace directory
     if os.path.exists(mw_workspace_dir) and os.path.isdir(mw_workspace_dir):
@@ -709,7 +753,7 @@ if __name__ == "__main__":
     elif args.callee:
         get_callee_flow(args.callee)
         pass
-    
+
     else:
         parser.print_help()
         quit()
