@@ -369,7 +369,8 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
                 if src_funcs.get(func_name, None) != None:
                     src_funcs[func_name] += rline
                 else:
-                    src_funcs[func_name] = rline
+                    # very first insert, we parse it out so that it doesnt include the func head ever.
+                    src_funcs[func_name] = re.compile(r".*?({.*)").search(rline).group(1) + "\n"
 
                 if in_func == 1:
                     # strip comments
@@ -474,6 +475,9 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
         loc = len(lines)
         for i in range(0, loc):
             line = lines[i]
+            # skip if line begins with a dot or a sharp (., #)
+            if line.strip().startswith(".") or line.strip().startswith("#"):
+                continue
             # trim start-end comments first
             if asm_comment_pattern_1_start.search(line):
                 line = asm_comment_pattern_1_start.search(line).group(1)    # trim comment
@@ -519,10 +523,8 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
         if asm_func_pattern_1.search(sanitizedline):    # will run regardless of in_func.
             func_name = asm_func_pattern_1.search(sanitizedline).group(1).strip("_")    # lets strip the starting '_'
             # if funcname was not encountered before, init
-            if asm_funcs.get(func_name, None) != None:
-                asm_funcs[func_name] += sanitizedline
-            else:
-                asm_funcs[func_name] = sanitizedline
+            if asm_funcs.get(func_name, None) == None:
+                asm_funcs[func_name] = ""
             in_func = 1
         elif in_func == 1:  # will always run, once in_func changed to 1 & is not on a function name
             # capture func body
@@ -570,32 +572,14 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
         code = funcs[func].splitlines()
         # before we continue, we need to make sure we dont include the header of the function
         # otherwise we get a callstack that calls itself (which is wrong)
-        if os.path.basename(func_unit_tracker[func]).split(".")[1] in asm_ext:
-            # we are dealing with a asm file (we can just skip a line)
-            startrecord = 0
-            for cline in code:
-                if cline.strip().endswith(":"):
-                    startrecord = 1
-                if startrecord == 2:
-                    for key in funcs_v.keys():
-                        cc = [x.strip("_") for x in re.split(r'[^a-zA-Z0-9_]+', cline)]
-                        if key in cc:
-                            callstack_gen[func].add(key)
-                elif startrecord == 1:
-                    startrecord = 2 # skip a beat
-        else:
-            # we are dealing with a c file (we need to ignore code until opening bracket)
-            startrecord = 0
-            for cline in code:
-                cline_v = cline
-                if "{" in cline.strip():
-                    cline_v = re.compile(r".*({.*)").search(cline).group(1)
-                    startrecord = 1
-                if startrecord == 1:
-                    for key in funcs_v.keys():
-                        cc = [x.strip("_") for x in re.split(r'[^a-zA-Z0-9_]+', cline_v)]
-                        if key in cc:
-                            callstack_gen[func].add(key)
+
+        # c and asm to share parse code
+        # if os.path.basename(func_unit_tracker[func]).split(".")[1] in asm_ext:
+        for cline in code:
+            for key in funcs_v.keys():
+                cc = [x.strip("_") for x in re.split(r'[^a-zA-Z0-9_]+', cline)]
+                if key in cc:
+                    callstack_gen[func].add(key)
 
     # save lists of all callstacks
     for func in callstack_gen.keys():
