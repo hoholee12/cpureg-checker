@@ -101,14 +101,14 @@ destructive_only = 0
 normality_count = 0 # doomed function if set 1
 
 # get caller flow
-def get_caller_flow(calling_path, func):
+def get_caller_flow(calling_path: str, func: str):
     global normality_count
     global bad_path_list
 
     if listup == 1:
         listup_set.add(func)
 
-    file_to_open = "calling_func_list\\" + func + ".txt"
+    file_to_open = callstack_gen_dir + os.path.sep + func + ".txt"
     try:
         with open(file_to_open, 'r', encoding = "UTF-8") as f:
             lines = f.readlines()
@@ -164,13 +164,13 @@ def get_caller_flow(calling_path, func):
         return
 
 # get callee flow
-def get_callee_flow(func):
+def get_callee_flow(func: str):
     global normality_count
     global bad_path_list
 
     test_files = []
     # bring all the data back
-    for root, dirs, files in os.walk("calling_func_list"):
+    for root, dirs, files in os.walk(callstack_gen_dir):
         for file in files:
             if file.endswith(".txt"):
                 test_files.append(os.path.join(root, file))
@@ -678,6 +678,9 @@ if __name__ == "__main__":
     group.add_argument("-p", "--process", action = "store_true", help = "process and spit out rights & wrongs on your code")
 
     parser.add_argument("-I", "--include", action = "append", metavar = "INCLUDE_PATH", type = str, help = "include path for the generate option")
+
+    group.add_argument("-c", "--caller", type = str, help = "print caller stack of function (test)")
+    group.add_argument("-C", "--callee", type = str, help = "print caller stack before reaching function (test)")
     
     args = parser.parse_args()
     target_platform = args.generate
@@ -698,6 +701,15 @@ if __name__ == "__main__":
         
     elif args.process:
         pass
+
+    # TODO: for test only. this will be removed
+    elif args.caller:
+        get_caller_flow("", args.caller)
+        pass
+    elif args.callee:
+        get_callee_flow(args.callee)
+        pass
+    
     else:
         parser.print_help()
         quit()

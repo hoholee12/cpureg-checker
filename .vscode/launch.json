@@ -28,6 +28,22 @@
             "program": "cpuhazard-checker.py",
             "console": "integratedTerminal",
             "args": ""
+        },
+        {
+            "name": "test caller",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "cpureg-checker.py",
+            "console": "integratedTerminal",
+            "args": "--caller main"
+        },
+        {
+            "name": "test callee",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "cpureg-checker.py",
+            "console": "integratedTerminal",
+            "args": "--callee jumphere"
         }
     ]
 }
