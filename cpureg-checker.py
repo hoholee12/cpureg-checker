@@ -402,6 +402,12 @@ def parse_functions_c_write(srcpaths: list, incpaths: list):
         if trackerkey not in src_funcs:
             src_funcs[trackerkey] = "{}"
 
+    # test inline asm
+    for src_func in src_funcs.values():
+        inlineasmfuncs = parse_functions_c_inlineasm_to_asm(src_func)
+        for inlineasm in inlineasmfuncs:
+            print("processed inline funcs:\n" + inlineasm)
+
     return src_funcs, func_unit_tracker_src
 
 # returns sorted list of strings of registers
@@ -558,12 +564,12 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list):
             asm_funcs[trackerkey] = "{}"
 
     # test
-    # for asm_func in asm_funcs.values():
-    #     tmp_funcs = parse_functions_asm_breakdown_branches(asm_func)
-    #     for mstr in tmp_funcs:
-    #         print("\nbreakdown:\n" + mstr)
+    for asm_func in asm_funcs.values():
+        tmp_funcs = parse_functions_asm_breakdown_branches(asm_func)
+        for mstr in tmp_funcs:
+            print("\nbreakdown:\n" + mstr)
 
-    #     print("\nreassemble:\n" + parse_functions_asm_reassemble_branches(asm_func, tmp_funcs))
+        print("\nreassemble:\n" + parse_functions_asm_reassemble_branches(asm_func, tmp_funcs))
 
     return asm_funcs, func_unit_tracker_asm
 
@@ -667,6 +673,39 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
                     srcpaths.add(dirpath + os.path.sep + filename)
     
     return srcpaths
+
+# we need to parse inlineasm too.
+# returns list of inline asm strings (one string per block)
+def parse_functions_c_inlineasm_to_asm(c_func: str):
+    inlineblocks = []
+    tmplines = c_func.split('\n')
+    lines = [tmpline + '\n' for tmpline in tmplines]
+    loc = len(lines)
+    insideinlineasm = 0
+    inblock = 0
+    tmpstr = ""
+    for i in range(0, loc):
+        if re.compile(r"__asm").search(lines[i]):
+            insideinlineasm = 1
+        if insideinlineasm == 1 and "(" in lines[i]:
+            inblock = 1  # i do not expect any nested brackets in a inlineasm
+        if insideinlineasm == 1 and ")" in lines[i]:
+            inblock = 2
+        if inblock == 2:
+            tmpstr += lines[i]
+            insideinlineasm = 0
+            inblock = 0
+            # process shit here and move on to the next inlineasm
+            parsedlines_v = re.compile(r"\"(.*?)\"").findall(tmpstr)
+            parsedlines = [re.compile(r"^(.*?)\s*(?=\\|$)").search(line).group(1).strip() for line in parsedlines_v]
+            parsedtostr = "\n".join(parsedlines)
+            inlineblocks.append(parsedtostr)
+            tmpstr = ""
+        elif inblock == 1:
+            # double quote is always expected for strings in c syntax
+            tmpstr += lines[i]
+
+    return inlineblocks
 
 # asm_func is a giant string with newlines as linebreak
 # this returns list of funcs broken down by branch ops
