@@ -557,6 +557,15 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list):
         if trackerkey not in asm_funcs:
             asm_funcs[trackerkey] = "{}"
 
+    # test
+    # for asm_func in asm_funcs.values():
+    #     tmp_funcs = parse_functions_asm_breakdown_branches(asm_func)
+    #     for mstr in tmp_funcs:
+    #         print("\nbreakdown:\n" + mstr)
+
+    #     print("\nreassemble:\n" + parse_functions_asm_reassemble_branches(asm_func, tmp_funcs))
+
+
     return asm_funcs, func_unit_tracker_asm
 
 # TODO: process both asm and c src for callstack
@@ -673,6 +682,7 @@ def parse_functions_asm_breakdown_branches(asm_func: str):
     for i in range(0, loc):
         if asm_branch_pattern.search(lines[i]):
             breakdownlist.append(tmpstr)
+            tmpstr = ""
             continue
         else:
             tmpstr += lines[i]
@@ -698,6 +708,7 @@ def parse_functions_asm_reassemble_branches(old_asm_func: str, breakdownlist: li
         if asm_branch_pattern.search(lines[i]):
             new_asm_func += lines[i]
             locswitch = 0
+            breakdownindex += 1
         elif locswitch == 0:
             new_asm_func += breakdownlist[breakdownindex]
             locswitch = 1
