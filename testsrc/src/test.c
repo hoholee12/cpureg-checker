@@ -9,10 +9,7 @@ void jumphere(int a, int b){
 
 int main(){
     printf("hello there\n");
-    __asm (
-        "mov 0x123,r4"
-        "bl _hellothere"
-    );
+    SOMERANDOMASMMACRO2();
 
     printf("ive returned\n");
 

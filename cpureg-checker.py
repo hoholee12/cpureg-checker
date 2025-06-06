@@ -565,7 +565,6 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list):
 
     #     print("\nreassemble:\n" + parse_functions_asm_reassemble_branches(asm_func, tmp_funcs))
 
-
     return asm_funcs, func_unit_tracker_asm
 
 # TODO: process both asm and c src for callstack

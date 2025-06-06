@@ -15,10 +15,7 @@ void jumphere(int a, int b){
 
 int main(){
     printf("hello there\n");
-    __asm (
-        "mov 0x123,r4"
-        "bl _hellothere"
-    );
+    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "jr _hellothere \n\t" );;
 
     printf("ive returned\n");
 
