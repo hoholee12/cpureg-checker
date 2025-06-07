@@ -51,8 +51,8 @@ asm_func_pattern_1 = re.compile(r"^(\w+):")
 
 # pattern for push pop detection (make sure it covers the inline assembly as well)
 # no need to worry for succeeding comments (they are completely removed at this stage)
-asm_push_pattern = re.compile(r"pushsp\s+(.*)")
-asm_pop_pattern = re.compile(r"popsp\s+(.*)")
+asm_push_pattern = re.compile(r"^pushsp\s+(.*)")
+asm_pop_pattern = re.compile(r"^popsp\s+(.*)")
 
 
 # for rh850:
@@ -62,9 +62,9 @@ asm_pop_pattern = re.compile(r"popsp\s+(.*)")
 # -- dispose imm, list, (sometimes)[reg] (put r31(linkreg) on reg -> you get a pop & jmp back to caller)
 # -- no need to worry about [reg], all we need to focus is the <list, imm> <imm, list>
 # -- but we do need the info for [reg] for correct branch path.
-rh850_push_pattern = re.compile(r"pushsp\s+(.*)|prepare\s+(.*),\s*\w+") 
+rh850_push_pattern = re.compile(r"^pushsp\s+(.*)|^prepare\s+(.*),\s*\w+") 
 # we shall only capture the reg part for prepare-dispose
-rh850_pop_pattern = re.compile(r"popsp\s+(.*)|dispose\s+\w+,\s*(.*)")
+rh850_pop_pattern = re.compile(r"^popsp\s+(.*)|^dispose\s+\w+,\s*(.*)")
 # TODO: we may need the dispose [reg] part for branch ident
 
 # for armv7m:
@@ -75,8 +75,8 @@ rh850_pop_pattern = re.compile(r"popsp\s+(.*)|dispose\s+\w+,\s*(.*)")
 # -- push {r4, lr} -> stmdb sp!, {r4, lr} (this means we can just treat stmdb sp! -> push)
 # -- pop {r4, pc} -> ldmia sp!, {r4, pc} (this means we can just treat ldmia sp! -> pop)
 # --- anything can be used besides sp! -> ignore because we will not give a fuck other than the stack.
-armv7m_push_pattern = re.compile(r"push\s+{((?:(?!,\s*lr)[^}])*).*}")
-armv7m_pop_pattern = re.compile(r"pop\s+{((?:(?!,\s*pc)[^}])*).*}")
+armv7m_push_pattern = re.compile(r"^push\s+{((?:(?!,\s*lr)[^}])*).*}")
+armv7m_pop_pattern = re.compile(r"^pop\s+{((?:(?!,\s*pc)[^}])*).*}")
 # we will just capture the whole thing without order. we will remove lr, pc in the process. 
 # (TODO: to be taken care of by branch ident)
 # we can care about the order thing later.(TODO: further parsing to individual regs maybe)
@@ -86,9 +86,9 @@ rh850_regname_intrinsics = {"sp" : "r3", "lr" : "r31"}
 armv7m_regname_intrinsics = {"sp" : "r13", "lr" : "r14", "pc" : "r15"}
 
 # we capture the branch op with the obj name. if obj name does not exist, we can find it in previous ops...
-asm_branch_pattern = re.compile(r"jr\s+(\w+)|jmp\s+(\w+)|jarl\s+(\w+)|b\w+\s+(\w+)")
-rh850_branch_pattern = re.compile(r"jr\s+(\w+)|jmp\s+(\w+)|jarl\s+(\w+)|b\w+\s+(\w+)")  # in rh850, theres no b ~ op
-armv7m_branch_pattern = re.compile(r"b\w*\s+(\w+)")    # armv7m branch opnames always start with b
+asm_branch_pattern = re.compile(r"^jr\s+(\w+)|^jmp\s+(\w+)|^jarl\s+(\w+)|^b\w+\s+(\w+)")
+rh850_branch_pattern = re.compile(r"^jr\s+(\w+)|^jmp\s+(\w+)|^jarl\s+(\w+)|^b\w+\s+(\w+)")  # in rh850, theres no b ~ op
+armv7m_branch_pattern = re.compile(r"^b\w*\s+(\w+)")    # armv7m branch opnames always start with b
 # this is to identify object address that is being passed to previous ops(mov), or in the branch op.
 # we need to identify this to figure out if its actually branching into a new function or not.
 # any code block that has a object name(blah:~) is considered a separate function.
@@ -718,7 +718,7 @@ def parse_functions_asm_breakdown_branches(asm_func: str):
     loc = len(lines)
     tmpstr = ""
     for i in range(0, loc):
-        if asm_branch_pattern.search(lines[i]):
+        if asm_branch_pattern.search(lines[i].lower()):
             breakdownlist.append(tmpstr)
             tmpstr = ""
             continue
@@ -743,7 +743,7 @@ def parse_functions_asm_reassemble_branches(old_asm_func: str, breakdownlist: li
     locswitch = 0
     breakdownindex = 0
     for i in range(0, loc):
-        if asm_branch_pattern.search(lines[i]):
+        if asm_branch_pattern.search(lines[i].lower()):
             new_asm_func += lines[i]
             locswitch = 0
             breakdownindex += 1
