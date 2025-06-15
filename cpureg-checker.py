@@ -94,6 +94,9 @@ armv7m_branch_pattern = re.compile(r"^b\w*\s+(\w+)")    # armv7m branch opnames 
 # any code block that has a object name(blah:~) is considered a separate function.
 asm_genericop_pattern = re.compile(r"^\s*\w+\s+(.*)")
 
+# remove preprocessed garbage texts
+preprocess_garbage_pattern = re.compile(r"^# \d+ \"(?!.*\.h\").*")
+
 listup = 0
 listup_set = set()
 bad_path_list = set()
@@ -258,6 +261,14 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
     mw_gcc_arg += " -o " + genfile
     # run gcc
     subprocess.call(mw_gcc_arg, shell = True)
+
+    # remove preprocessed info texts..
+    with open(genfile, 'r', encoding = "UTF-8") as f:
+        lines = f.readlines()
+        filtered = [line for line in lines if not preprocess_garbage_pattern.search(line)]
+
+    with open(genfile, 'w', encoding = "UTF-8") as f:
+        f.writelines(filtered)
 
     src_funcs = {}
     func_unit_tracker_src = {}
@@ -472,6 +483,14 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict
     mw_gcc_arg += " -o " + genfile
     # run gcc
     subprocess.call(mw_gcc_arg, shell = True)
+    
+    # remove preprocessed info texts..
+    with open(genfile, 'r', encoding = "UTF-8") as f:
+        lines = f.readlines()
+        filtered = [line for line in lines if not preprocess_garbage_pattern.search(line)]
+
+    with open(genfile, 'w', encoding = "UTF-8") as f:
+        f.writelines(filtered)
 
     # file have been preprocessed. now we start parsing
     in_comment = 0  # 1 if inside comment

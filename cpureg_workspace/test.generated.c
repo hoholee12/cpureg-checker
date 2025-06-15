@@ -1,10 +1,5 @@
-# 1 "testsrc\\src\\test.c"
-# 1 "<built-in>"
-# 1 "<command-line>"
-# 1 "testsrc\\src\\test.c"
 # 1 "testsrc/rh850_inc/test.h" 1
        
-# 2 "testsrc\\src\\test.c" 2
 
 void jumphere(int a, int b){
     printf("a = %d, b = %d\n", a, b);
