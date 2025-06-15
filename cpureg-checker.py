@@ -240,7 +240,7 @@ def get_callee_flow(func: str):
 # genfile: generated src path
 # this will strip every comment and index every function from c sources
 # uses mw_workspace_dir to temporarily store the preprocessed files
-def parse_functions_c_persrc(srcpath: str, incpaths: list):
+def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
     # do macro preprocess first
     mw_gcc_arg = "gcc -E "
     mw_gcc_arg_inc = " -I "
@@ -270,6 +270,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
         in_func = 0
         bstack = 0
         comment = 0 # inside comment
+        starti = 0 # starting location of function
 
         for i in range(0, loc):
             # inside a comment - do not process
@@ -322,8 +323,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
 
                 if func_pattern.search(tmp_str_copy):
                     func_name = func_pattern.search(tmp_str_copy).group(1)
-                    # another set to keep track of which file the function is located in
-                    func_unit_tracker_src[func_name] = mw_srcpath
+                    starti = i  # record starting location for func_name
                 else:
                     tmp_str = ""
                     continue
@@ -375,13 +375,15 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list):
                 if in_func == 1:
                     # strip comments
                     src_funcs[func_name] = comment_pattern_w.sub('', src_funcs[func_name]).strip()
+                    # another set to keep track of which file the function is located in
+                    func_unit_tracker_src[func_name] = [starti, i, mw_srcpath]
                     in_func = 0
                     func_name = ""
 
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(src_funcs)))
     return src_funcs, func_unit_tracker_src
 
-def parse_functions_c_write(srcpaths: list, incpaths: list):
+def parse_functions_c_write(srcpaths: list, incpaths: list) -> tuple[dict, dict]:
     src_funcs = {}
     func_unit_tracker_src = {}  # this is just for grouping function set for each source file. nothing fancy
     max_workers = int(os.cpu_count() / 4)
@@ -412,7 +414,7 @@ def parse_functions_c_write(srcpaths: list, incpaths: list):
 
 # returns sorted list of strings of registers
 # takes care of , and -
-def parse_functions_asm_individual_reg(regs: str):
+def parse_functions_asm_individual_reg(regs: str) -> list:
     global asm_regname_intrinsics
     reglist_ = regs.replace(" ", "").split(",")
     reglist = set()
@@ -436,7 +438,7 @@ def parse_functions_asm_individual_reg(regs: str):
 # we shall do macro preprocessing just like the c source as well
 # returns asm_funcs(body), func_unit_tracker(for caller stack)
 # TODO: 1. we shall parse for callstack first, 2. and then parse push/pop after that.
-def parse_functions_asm_persrc(srcpath: str, incpaths: list):
+def parse_functions_asm_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
     # we generate the c files first
     mw_srcpath = os.path.basename(srcpath)
     mw_srcpath_fnonly = mw_srcpath.split(".")[0]
@@ -524,6 +526,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
     func_unit_tracker_asm = {}
     func_name = ""
     in_func = 0 # once it is 1, it will never be 0 again until EOF
+    starti = 0 # starting location of function
     for i in range(0, sanitizedloc):
         sanitizedline = sanitizedlines[i]
         if asm_func_pattern_1.search(sanitizedline):    # will run regardless of in_func.
@@ -532,17 +535,19 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list):
             if asm_funcs.get(func_name, None) == None:
                 asm_funcs[func_name] = ""
             in_func = 1
+            starti = i
         elif in_func == 1:  # will always run, once in_func changed to 1 & is not on a function name
             # capture func body
             asm_funcs[func_name] += sanitizedline
             # another set to keep track of which file the function is located in
-            func_unit_tracker_asm[func_name] = mw_srcpath
+            # (will run several times atm, TODO: make it run only once)
+            func_unit_tracker_asm[func_name] = [starti, i, mw_srcpath]
 
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(asm_funcs)))
     return asm_funcs, func_unit_tracker_asm
             
 
-def parse_functions_asm_write(srcpaths: list, incpaths: list):
+def parse_functions_asm_write(srcpaths: list, incpaths: list) -> tuple[dict, dict]:
     asm_funcs = {}
     func_unit_tracker_asm = {}  # this is just for grouping function set for each source file. nothing fancy
     max_workers = int(os.cpu_count() / 4)
@@ -604,7 +609,7 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
 
     # save processed function bodies
     for func in funcs.keys():
-        new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func] + "." + func + ".txt"
+        new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func][2] + "." + func + ".txt"
         with open(new_file, 'w') as wf:
             wf.write(funcs[func])
 
@@ -636,12 +641,12 @@ def parse_functions(srcpaths: list, incpaths: list):
     # lets fix that
     for func in funcs.keys():
         if func_unit_tracker.get(func, None) == None:
-            func_unit_tracker[func] = "unknown.c"
+            func_unit_tracker[func] = [0, 0, "unknown.c"]
 
     parse_functions_process_callstack(funcs, func_unit_tracker) # generate callstack and write to file.
 
 # srcpaths: should return list of source files
-def parse_per_target_platform(target_platform: str, incpaths: list):
+def parse_per_target_platform(target_platform: str, incpaths: list) -> set:
     global asm_ext
     global asm_push_pattern
     global asm_pop_pattern
@@ -682,7 +687,7 @@ def parse_per_target_platform(target_platform: str, incpaths: list):
 
 # we need to parse inlineasm too.
 # returns list of inline asm strings (one string per block)
-def parse_functions_c_inlineasm_to_asm(c_func: str):
+def parse_functions_c_inlineasm_to_asm(c_func: str) -> list:
     inlineblocks = []
     tmplines = c_func.split('\n')
     lines = [tmpline + '\n' for tmpline in tmplines]
@@ -716,7 +721,7 @@ def parse_functions_c_inlineasm_to_asm(c_func: str):
 # asm_func is a giant string with newlines as linebreak
 # this returns list of funcs broken down by branch ops
 # i dont intend to save this anywhere
-def parse_functions_asm_breakdown_branches(asm_func: str):
+def parse_functions_asm_breakdown_branches(asm_func: str) -> list:
     breakdownlist = []
     # asm_func.splitlines(keepends = True)
     tmplines = asm_func.split('\n') # split the giant string
@@ -739,7 +744,7 @@ def parse_functions_asm_breakdown_branches(asm_func: str):
 # 1. old lines[0] -> new lines[0]
 # 2. old branch
 # 3. old lines[1] -> new lines[1]
-def parse_functions_asm_reassemble_branches(old_asm_func: str, breakdownlist: list):
+def parse_functions_asm_reassemble_branches(old_asm_func: str, breakdownlist: list) -> str:
     new_asm_func = ""
     # asm_func.splitlines(keepends = True)
     tmplines = old_asm_func.split('\n') # split the giant string
@@ -812,4 +817,3 @@ if __name__ == "__main__":
     else:
         parser.print_help()
         quit()
-
