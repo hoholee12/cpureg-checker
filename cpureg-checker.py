@@ -632,6 +632,12 @@ def parse_functions(srcpaths: list, incpaths: list):
     funcs.update(funcs_v)
     func_unit_tracker.update(func_unit_tracker_v)
 
+    # if the codebase is not compilable, some funcs may not have an entry in func_unit_tracker
+    # lets fix that
+    for func in funcs.keys():
+        if func_unit_tracker.get(func, None) == None:
+            func_unit_tracker[func] = "unknown.c"
+
     parse_functions_process_callstack(funcs, func_unit_tracker) # generate callstack and write to file.
 
 # srcpaths: should return list of source files
