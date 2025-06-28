@@ -614,8 +614,11 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
         # c and asm to share parse code
         # if os.path.basename(func_unit_tracker[func]).split(".")[1] in asm_ext:
         for cline in code:
+            # split the line into tokens and skip any possible empty lines
+            # (if possible) we strip the first underscore from the function name due to asm
+            # regex: [^] means "not", so we split by anything that is not a-z, A-Z, 0-9, or _
+            cc = [x.lstrip("_") for x in re.split(r'[^a-zA-Z0-9_]+', cline) if x.strip() != ""]
             for key in funcs_v.keys():
-                cc = [x.lstrip("_") for x in re.split(r'[^a-zA-Z0-9]+', cline)]
                 if key in cc:
                     callstack_gen[func].add(key)
 

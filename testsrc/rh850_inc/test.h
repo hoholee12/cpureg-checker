@@ -6,6 +6,6 @@
         "mov 0x234, r11 \n\t" \
         "mov 0x345, r13 \n\t" \
         "mov 0x123, r4 \n\t" \
-        "jr _hellothere \n\t" \
+        "jr _hellothere_hello \n\t" \
     );
 #define TESTASM 1

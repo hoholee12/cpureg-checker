@@ -1,8 +1,8 @@
 # 1 "testsrc/rh850_inc/test.h" 1
        
 
-.global _hellothere
-_hellothere:
+.global _hellothere_hello
+_hellothere_hello:
 
     pushsp r4-r4
     mov r4, r0

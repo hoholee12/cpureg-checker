@@ -1,7 +1,7 @@
 #include "test.h"
 
-.global _hellothere
-_hellothere:
+.global _hellothere_hello
+_hellothere_hello:
 .if (TESTASM == 1)
     push {r4, lr}
     mov r4, r0  // to the arg0
