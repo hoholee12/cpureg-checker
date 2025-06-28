@@ -549,7 +549,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict
     for i in range(0, sanitizedloc):
         sanitizedline = sanitizedlines[i]
         if asm_func_pattern_1.search(sanitizedline):    # will run regardless of in_func.
-            func_name = asm_func_pattern_1.search(sanitizedline).group(1).strip("_")    # lets strip the starting '_'
+            func_name = asm_func_pattern_1.search(sanitizedline).group(1).lstrip("_")    # lets strip the starting '_'
             # if funcname was not encountered before, init
             if asm_funcs.get(func_name, None) == None:
                 asm_funcs[func_name] = ""
@@ -615,7 +615,7 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
         # if os.path.basename(func_unit_tracker[func]).split(".")[1] in asm_ext:
         for cline in code:
             for key in funcs_v.keys():
-                cc = [x.strip("_") for x in re.split(r'[^a-zA-Z0-9_]+', cline)]
+                cc = [x.lstrip("_") for x in re.split(r'[^a-zA-Z0-9]+', cline)]
                 if key in cc:
                     callstack_gen[func].add(key)
 
