@@ -674,7 +674,7 @@ def parse_per_target_platform(target_platform: str, incpaths: list) -> set:
     # get extension
     if target_platform not in supported_platforms:
         print(target_platform + " not supported")
-        quit()
+        sys.exit(1)
     elif target_platform == "rh850":
         # asm extension
         asm_ext.append("850")
@@ -799,10 +799,10 @@ def check_gcc():
         subprocess.run(["gcc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError:
         print("GCC is not installed or not found in PATH.")
-        quit()
+        sys.exit(1)
     except FileNotFoundError:
         print("GCC is not installed or not found in PATH.")
-        quit()
+        sys.exit(1)
 
 def main():
     check_gcc()
@@ -848,7 +848,7 @@ def main():
 
     else:
         parser.print_help()
-        quit()
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
