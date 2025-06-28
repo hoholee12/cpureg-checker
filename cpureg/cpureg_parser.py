@@ -793,7 +793,20 @@ def parse_workspace_cleanup():
     os.makedirs(proc_funcbody_dir, exist_ok = True)
     os.makedirs(proc_funcbody_asm_dir, exist_ok = True)
 
+def check_gcc():
+    # check if gcc is installed
+    try:
+        subprocess.run(["gcc", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    except subprocess.CalledProcessError:
+        print("GCC is not installed or not found in PATH.")
+        quit()
+    except FileNotFoundError:
+        print("GCC is not installed or not found in PATH.")
+        quit()
+
 def main():
+    check_gcc()
+
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-g", "--generate", type = str, choices = supported_platforms,
