@@ -1,1 +1,2 @@
-import cpureg_parser
+from cpureg import cpureg_parser
+

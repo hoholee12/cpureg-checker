@@ -1,3 +1,3 @@
-from cpureg import cpureg_parser
+from cpureg import cpureg_checker
 
-cpureg_parser.main()
+cpureg_checker.cpureg_parser.main()
