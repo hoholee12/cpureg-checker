@@ -9,3 +9,10 @@
         "jr _hellothere_hello \n\t" \
     );
 #define TESTASM 1
+
+// test for macro'd variable definitions
+#define VOVAR(x, y) volatile x
+#define SVAR(x, y) static volatile x
+#define VAR(x, y) x
+#define PVAR(x, y) volatile x *
+#define MYVAR 1

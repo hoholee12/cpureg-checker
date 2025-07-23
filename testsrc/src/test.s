@@ -1,5 +1,5 @@
 #include "test.h"
-
+.extern _hello
 .global _hellothere_hello
 _hellothere_hello:
 .if (TESTASM == 1)
@@ -15,8 +15,11 @@ _hellothere_hello:
     STR R5, [R7]
     STR R12, [R1]
     B _jumphere
+
     ADD R2, R10, R11
     LDR R14, [R3]
     STR R14, [R2]
     MOV R15, R0
+
+    MOV _hello, R1
 .endif

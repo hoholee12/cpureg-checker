@@ -16,3 +16,5 @@ add r2, r10, r11
 ld.w r14, [r3]
 st.w r14, [r2]
 mov r15, r0
+
+mov _hello, r1

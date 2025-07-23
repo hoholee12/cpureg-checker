@@ -1,5 +1,7 @@
 {
     printf("a = %d, b = %d\n", a, b);
+    hello[0] = a;
+    hello[1] = b;
 
     __asm volatile("popsp r4-r4");
 
