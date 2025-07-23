@@ -97,6 +97,9 @@ asm_genericop_pattern = re.compile(r"^\s*\w+\s+(.*)")
 # remove preprocessed garbage texts
 preprocess_garbage_pattern = re.compile(r"^# \d+ \"(?!.*\.h\").*")
 
+# capture global variables
+global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=)")
+
 listup = 0
 listup_set = set()
 bad_path_list = set()
@@ -270,6 +273,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
     with open(genfile, 'w', encoding = "UTF-8") as f:
         f.writelines(filtered)
 
+    global_vars = set() # get the global variables
     src_funcs = {}
     func_unit_tracker_src = {}
 
@@ -302,6 +306,12 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
                 if comment == 1:
                     comment = 0
                     continue
+
+            # if we are not in a function, we can start capturing the global variables
+            if in_func == 0 and global_var_pattern.search(lines[i]):
+                # capture the global variable
+                varname = global_var_pattern.search(lines[i]).group(1)
+                global_vars.add(varname)
 
             # capture all lines preceding possible start of function - don't include extern/while/for/if/switch
             if in_func == 0 and not not_in_line.search(lines[i]):
@@ -392,9 +402,10 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
                     func_name = ""
 
     print(os.path.basename(genfile) + " number of funcs found: " + str(len(src_funcs)))
-    return src_funcs, func_unit_tracker_src
+    return src_funcs, func_unit_tracker_src, global_vars
 
 def parse_functions_c_write(srcpaths: list, incpaths: list) -> tuple[dict, dict]:
+    global_vars = set()  # global variables
     src_funcs = {}
     func_unit_tracker_src = {}  # this is just for grouping function set for each source file. nothing fancy
     max_workers = int(os.cpu_count() / 4)
@@ -407,6 +418,7 @@ def parse_functions_c_write(srcpaths: list, incpaths: list) -> tuple[dict, dict]
             # merge dicts
             src_funcs.update(results[0])
             func_unit_tracker_src.update(results[1])
+            global_vars.update(results[2])
 
     # tidy up
     # anything that is in function tracker but not in the body capture, is probably a one liner empty function
@@ -421,7 +433,7 @@ def parse_functions_c_write(srcpaths: list, incpaths: list) -> tuple[dict, dict]
         for inlineasm in inlineasmfuncs:
             print("processed inline funcs:\n" + inlineasm)
 
-    return src_funcs, func_unit_tracker_src
+    return src_funcs, func_unit_tracker_src, global_vars
 
 # returns sorted list of strings of registers
 # takes care of , and -
@@ -598,7 +610,7 @@ def parse_functions_asm_write(srcpaths: list, incpaths: list) -> tuple[dict, dic
     return asm_funcs, func_unit_tracker_asm
 
 # TODO: process both asm and c src for callstack
-def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
+def parse_functions_process_callstack(funcs: list, func_unit_tracker: list, global_vars: set):
     global asm_ext
     # generate call stack estimation
     callstack_gen = {}
@@ -629,6 +641,14 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list):
             for calling in callstack_gen[func]:
                 wf.write(calling + "\n")
 
+    # save global variable list used by functions - TODO: this is bad code, we need a regex for this shit
+    for func in callstack_gen.keys():
+        new_file = callstack_gen_dir + os.path.sep + func + ".globals.txt"
+        with open(new_file, 'w') as wf:
+            for gvar in global_vars:
+                if gvar in funcs[func]:
+                    wf.write(gvar + "\n")
+
     # save processed function bodies
     for func in funcs.keys():
         new_file = proc_funcbody_dir + os.path.sep + func_unit_tracker[func][2] + "." + func + ".txt"
@@ -645,6 +665,7 @@ def parse_functions(srcpaths: list, incpaths: list):
     func_unit_tracker = {}
     funcs_v = {}
     func_unit_tracker_v = {}
+    global_vars = set()
 
     for srcpath in srcpaths:
         if srcpath.split(".")[-1] in asm_ext:   # asm file
@@ -652,7 +673,7 @@ def parse_functions(srcpaths: list, incpaths: list):
         else:   # c file
             srcpaths_c.append(srcpath)
 
-    funcs, func_unit_tracker = parse_functions_c_write(srcpaths_c, incpaths)   
+    funcs, func_unit_tracker, global_vars = parse_functions_c_write(srcpaths_c, incpaths)   
     # generate all c files and their func bodies & callstack
     funcs_v, func_unit_tracker_v = parse_functions_asm_write(srcpaths_asm, incpaths)   
     # generate all asm func bodies & callstack
@@ -665,7 +686,7 @@ def parse_functions(srcpaths: list, incpaths: list):
         if func_unit_tracker.get(func, None) == None:
             func_unit_tracker[func] = [0, 0, "unknown.c"]
 
-    parse_functions_process_callstack(funcs, func_unit_tracker) # generate callstack and write to file.
+    parse_functions_process_callstack(funcs, func_unit_tracker, global_vars) # generate callstack and write to file.
 
 # srcpaths: should return list of source files
 def parse_per_target_platform(target_platform: str, incpaths: list) -> set:
