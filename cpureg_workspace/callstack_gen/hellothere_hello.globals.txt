@@ -1,1 +1,2 @@
-hello
+myglobal2
+myglobal1

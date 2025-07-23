@@ -1,13 +1,13 @@
 #include "test.h"
 
-VOVAR(int, MYVAR) hello[10];
-SVAR(int, MYVAR) world = 1;
-PVAR(int, MYVAR) pointer_to_hello = &hello;
+VOVAR(int, MYVAR) myglobal1[10];
+SVAR(int, MYVAR) myglobal2 = 1;
+PVAR(int, MYVAR) myglobal3 = &myglobal1;
 
 void jumphere(int a, int b){
     printf("a = %d, b = %d\n", a, b);
-    hello[0] = a;
-    hello[1] = b;
+    myglobal1[0] = a;
+    myglobal1[1] = b;
 
     SOMERANDOMASMMACRO();
 

@@ -1,14 +1,14 @@
 # 1 "testsrc/rh850_inc/test.h" 1
        
 
-volatile int hello[10];
-static volatile int world = 1;
-volatile int * pointer_to_hello = &hello;
+volatile int myglobal1[10];
+static volatile int myglobal2 = 1;
+volatile int * myglobal3 = &myglobal1;
 
 void jumphere(int a, int b){
     printf("a = %d, b = %d\n", a, b);
-    hello[0] = a;
-    hello[1] = b;
+    myglobal1[0] = a;
+    myglobal1[1] = b;
 
     __asm volatile("popsp r4-r4");
 

@@ -1,6 +1,6 @@
 # 1 "testsrc/rh850_inc/test.h" 1
        
-.extern _hello
+.extern _myglobal1
 .global _hellothere_hello
 _hellothere_hello:
 
@@ -22,4 +22,5 @@ _hellothere_hello:
     st.w r14, [r2]
     mov r15, r0
 
-    mov _hello, r1
+    mov _myglobal1, r1
+    mov _myglobal2, r2
