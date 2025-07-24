@@ -1,4 +1,4 @@
+myglobal1
 myglobal3
 myglobal4
-myglobal1
 myglobal2

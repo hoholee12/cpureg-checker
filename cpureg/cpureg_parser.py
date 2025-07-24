@@ -100,7 +100,7 @@ preprocess_garbage_pattern = re.compile(r"^# \d+ \"(?!.*\.h\").*")
 # capture global variables
 global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*")
 global_var_dontuse_pattern = re.compile(r"typedef\s*|enum\s*|struct\s*")
-global_var_use_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*;") # pretty bad but it works for now
+global_var_use_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*") # pretty bad but it works for now
 global_var_use_asm_pattern = re.compile(r"^\s*\w+\s+(.*),")
 
 def srcpath_isnotc(srcpath: str) -> bool:
@@ -301,6 +301,10 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
         starti = 0 # starting location of function
 
         for i in range(0, loc):
+            # inside a macro comment
+            if re.compile(r'^#.*').search(lines[i]):
+                continue
+
             # inside a comment - do not process
             if comment_pattern_1.search(lines[i]):
                 comment = 2
@@ -339,7 +343,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
                     tstack = 0
 
             # if we are extern while tstack not 0, tracked tstack count may be wrong
-            if in_func == 0 and "extern" in lines[i]:
+            if in_func == 0 and ("extern" in lines[i] or "typedef" in lines[i]):
                 tstack = 0
                 in_tfunc = 0
 
