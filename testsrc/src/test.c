@@ -10,7 +10,13 @@ void jumphere(int a, int b){
     myglobal1[1] = b;
 
     SOMERANDOMASMMACRO();
+    jumpthere();
 
+}
+int jumpthere(void)
+{
+    printf("jumping there\n");
+    return 0;
 }
 
 int main(){

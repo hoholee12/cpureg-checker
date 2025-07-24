@@ -99,6 +99,7 @@ preprocess_garbage_pattern = re.compile(r"^# \d+ \"(?!.*\.h\").*")
 
 # capture global variables
 global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*;")
+global_var_dontuse_pattern = re.compile(r"typedef\s*|enum\s*|struct\s*")
 global_var_use_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*;") # pretty bad but it works for now
 global_var_use_asm_pattern = re.compile(r"^\s*\w+\s+(.*),")
 
@@ -291,6 +292,11 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
         func_name = ""
         in_func = 0
         bstack = 0
+
+        in_tfunc = 0
+        in_typedef_struct = 0
+        tstack = 0
+
         comment = 0 # inside comment
         starti = 0 # starting location of function
 
@@ -314,11 +320,36 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
                     comment = 0
                     continue
 
+            # --- start of global var parsing ---
+            if in_func == 0 and in_tfunc != 2:
+                if "{" in lines[i]:
+                    if tstack == 0:
+                        in_tfunc = 1
+                    tstack += 1
+                if "}" in lines[i]:
+                    tstack -= 1
+                    if tstack <= 0:
+                        in_tfunc = 2
+                        tstack = 0
+            elif in_func == 0 and in_tfunc == 2:
+                in_tfunc = 0 # skip one line
+            # if we are extern while tstack not 0, tracked tstack count may be wrong
+            if in_func == 0 and "extern" in lines[i]:
+                tstack = 0
+                in_tfunc = 0
+
+            if in_func == 0 and global_var_dontuse_pattern.search(lines[i]):
+                in_typedef_struct = 1
+            elif in_func == 0 and in_typedef_struct == 1:
+                in_typedef_struct = 0
+
             # if we are not in a function, we can start capturing the global variables
-            if in_func == 0 and global_var_pattern.search(lines[i]):
+            if in_func == 0 and in_tfunc == 0 and in_typedef_struct == 0 and global_var_pattern.search(lines[i]):
                 # capture the global variable
                 varname = global_var_pattern.search(lines[i]).group(1)
-                global_vars.add(varname)
+                if not varname.isdigit():   # hackfix
+                    global_vars.add(varname)
+            # --- end of global var parsing ---
 
             # capture all lines preceding possible start of function - don't include extern/while/for/if/switch
             if in_func == 0 and not not_in_line.search(lines[i]):
@@ -423,8 +454,14 @@ def parse_functions_c_write(srcpaths: list, incpaths: list) -> tuple[dict, dict]
         for future in concurrent.futures.as_completed(futures):
             results = future.result()
             # merge dicts
-            src_funcs.update(results[0])
-            func_unit_tracker_src.update(results[1])
+            for xfunc in results[0].keys():
+                if src_funcs.get(xfunc, None) == None:
+                    src_funcs[xfunc] = results[0][xfunc]
+                    func_unit_tracker_src[xfunc] = results[1][xfunc]
+                elif len(results[0][xfunc]) > len(src_funcs[xfunc]):
+                    # if the function is longer, we replace it
+                    src_funcs[xfunc] = results[0][xfunc]
+                    func_unit_tracker_src[xfunc] = results[1][xfunc]
             global_vars.update(results[2])
 
     # tidy up
@@ -669,10 +706,9 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list, glob
         else:
             with open(new_file, 'w') as wf:
                 findvar = set()
-                for varmatch in global_var_use_pattern.findall(funcs[func]):
-                    for gvar in global_vars:
-                        if gvar in varmatch:
-                            findvar.add(gvar)
+                for gvar in global_vars:
+                    if gvar in funcs[func]:
+                        findvar.add(gvar)
                 for gvar in findvar:
                     wf.write(gvar + "\n")
 
@@ -714,6 +750,11 @@ def parse_functions(srcpaths: list, incpaths: list):
             func_unit_tracker[func] = [0, 0, "unknown.c"]
 
     parse_functions_process_callstack(funcs, func_unit_tracker, global_vars) # generate callstack and write to file.
+
+    # TODO: test
+    with open("global_vars.txt", 'w') as wf:
+        for gvar in global_vars:
+            wf.write(gvar + "\n")
 
 # srcpaths: should return list of source files
 def parse_per_target_platform(target_platform: str, incpaths: list) -> set:

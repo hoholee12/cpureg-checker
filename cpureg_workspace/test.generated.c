@@ -11,7 +11,13 @@ void jumphere(int a, int b){
     myglobal1[1] = b;
 
     __asm volatile("popsp r4-r4");
+    jumpthere();
 
+}
+int jumpthere(void)
+{
+    printf("jumping there\n");
+    return 0;
 }
 
 int main(){

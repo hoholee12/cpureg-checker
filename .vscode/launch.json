@@ -50,7 +50,7 @@
             "request": "launch",
             "program": "cpureg-checker.py",
             "console": "integratedTerminal",
-            "args": "--callee jumphere"
+            "args": "--callee jumpthere"
         }
     ]
 }

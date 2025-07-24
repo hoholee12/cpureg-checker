@@ -4,5 +4,6 @@
     myglobal1[1] = b;
 
     __asm volatile("popsp r4-r4");
+    jumpthere();
 
 }
