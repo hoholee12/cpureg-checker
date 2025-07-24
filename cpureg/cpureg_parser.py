@@ -30,7 +30,7 @@ not_in_line = re.compile(r'(\w+;|^extern|\s+while|\s+for|\s+if|\s+switch)')
 pre_func_pattern = re.compile(r'\)\s*{\s*')
 func_pattern = re.compile(r'\s*(\w+)\s*$')
 
-oneliner_func_pattern = re.compile(r'(.*})\s*')
+oneliner_func_pattern = re.compile(r'\)\s*{.*}\s*')
 stubinfo_pattern = re.compile(r'.*\\(\w+)\.')
 
 # patterns for asm comments
@@ -98,7 +98,7 @@ asm_genericop_pattern = re.compile(r"^\s*\w+\s+(.*)")
 preprocess_garbage_pattern = re.compile(r"^# \d+ \"(?!.*\.h\").*")
 
 # capture global variables
-global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*;")
+global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*")
 global_var_dontuse_pattern = re.compile(r"typedef\s*|enum\s*|struct\s*")
 global_var_use_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*;") # pretty bad but it works for now
 global_var_use_asm_pattern = re.compile(r"^\s*\w+\s+(.*),")
@@ -321,18 +321,23 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
                     continue
 
             # --- start of global var parsing ---
-            if in_func == 0 and in_tfunc != 2:
-                if "{" in lines[i]:
-                    if tstack == 0:
-                        in_tfunc = 1
-                    tstack += 1
-                if "}" in lines[i]:
-                    tstack -= 1
-                    if tstack <= 0:
-                        in_tfunc = 2
-                        tstack = 0
-            elif in_func == 0 and in_tfunc == 2:
-                in_tfunc = 0 # skip one line
+            # if we are not in a function, we can start capturing the global variables
+            if in_tfunc == 0 and in_typedef_struct == 0 and global_var_pattern.search(lines[i]):
+                # capture the global variable
+                varname = global_var_pattern.search(lines[i]).group(1)
+                if not varname.isdigit():   # hackfix
+                    global_vars.add(varname)
+
+            if "{" in lines[i]:
+                if tstack == 0:
+                    in_tfunc = 1
+                tstack += 1
+            if "}" in lines[i]:
+                tstack -= 1
+                if tstack <= 0:
+                    in_tfunc = 0
+                    tstack = 0
+
             # if we are extern while tstack not 0, tracked tstack count may be wrong
             if in_func == 0 and "extern" in lines[i]:
                 tstack = 0
@@ -343,12 +348,6 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
             elif in_func == 0 and in_typedef_struct == 1:
                 in_typedef_struct = 0
 
-            # if we are not in a function, we can start capturing the global variables
-            if in_func == 0 and in_tfunc == 0 and in_typedef_struct == 0 and global_var_pattern.search(lines[i]):
-                # capture the global variable
-                varname = global_var_pattern.search(lines[i]).group(1)
-                if not varname.isdigit():   # hackfix
-                    global_vars.add(varname)
             # --- end of global var parsing ---
 
             # capture all lines preceding possible start of function - don't include extern/while/for/if/switch

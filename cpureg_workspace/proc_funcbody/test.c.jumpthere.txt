@@ -1,4 +1,4 @@
 {
-    printf("jumping there\n");
+    printf("jumping there %d\n", myglobal4[3]);
     return 0;
 }
