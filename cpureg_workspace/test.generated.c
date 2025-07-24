@@ -5,6 +5,9 @@ volatile int myglobal1[10];
 static volatile int myglobal2 = 1;
 volatile int * myglobal3 = &myglobal1;
 
+void jumphere(int a, int b);
+int jumpthere(void);
+
 void jumphere(int a, int b){
     printf("a = %d, b = %d\n", a, b);
     myglobal1[0] = a;
