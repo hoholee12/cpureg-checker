@@ -3,9 +3,9 @@
 .global _hellothere_hello
 _hellothere_hello:
 #if (TESTASM == 1)
-    pushsp r4-r4
-    mov r4, r0  // to the arg0
-    mov 1, r1   // to the arg1
+    pushsp r4
+    mov r4, r0
+    mov 1, r1
     mov     r10, r11
     mov     r12, r13
     ld.w    r1, [r2]

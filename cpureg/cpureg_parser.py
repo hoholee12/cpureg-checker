@@ -37,8 +37,7 @@ stubinfo_pattern = re.compile(r'.*\\(\w+)\.')
 asm_comment_pattern_1_start = re.compile(r"(.*?)/\*")   # /*
 # asm_comment_pattern_1 - make a flag to skip inbetween lines
 asm_comment_pattern_1_end = re.compile(r"\*/(.*?)")     # */
-asm_comment_pattern_2 = re.compile(r"(.*?)\s*-")        # - (? is to make the capture group less greedy)
-asm_comment_pattern_3 = re.compile(r"(.*?)\/\/")        # //
+asm_comment_pattern_2 = re.compile(r"(.*?)\s*(?:-|\/\/|;)")        # -, //, ; capture group
 # if none of the above match, we have a clean line
 # /* hello:
 # --_hello:
@@ -95,7 +94,7 @@ armv7m_branch_pattern = re.compile(r"^b\w*\s+(\w+)")    # armv7m branch opnames 
 asm_genericop_pattern = re.compile(r"^\s*\w+\s+(.*)")
 
 # remove preprocessed garbage texts
-preprocess_garbage_pattern = re.compile(r"^# \d+ \"(?!.*\.h\").*")
+# preprocess_garbage_pattern = re.compile(r"^# \d+ \"(?!.*\.h\").*")
 
 # capture global variables
 global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*")
@@ -276,7 +275,7 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
     # remove preprocessed info texts..
     with open(genfile, 'r', encoding = "UTF-8") as f:
         lines = f.readlines()
-        filtered = [line for line in lines if not preprocess_garbage_pattern.search(line)]
+        filtered = [line for line in lines if not line.startswith("#")]
 
     with open(genfile, 'w', encoding = "UTF-8") as f:
         f.writelines(filtered)
@@ -295,7 +294,11 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
 
         in_tfunc = 0
         in_typedef_struct = 0
-        tstack = 0
+        tstack = 0 # curly brackets
+        typedef_struct_semicolon_reached = 0
+
+        cstack = 0
+        in_param = 0
 
         comment = 0 # inside comment
         starti = 0 # starting location of function
@@ -325,12 +328,34 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
                     continue
 
             # --- start of global var parsing ---
+            # simple typedef struct blocking
+            if in_func == 0 and global_var_dontuse_pattern.search(lines[i]):
+                in_typedef_struct = 1
+            elif in_func == 0 and in_typedef_struct == 1 and in_tfunc == 0 and typedef_struct_semicolon_reached == 1:
+                in_typedef_struct = 0
+                typedef_struct_semicolon_reached = 0
+
+            # check whether we are in param
+            if "(" in lines[i]:
+                if cstack == 0:
+                    in_param = 1
+                cstack += 1
+            if ")" in lines[i]:
+                cstack -= 1
+                if cstack <= 0:
+                    in_param = 2 # we skip one line
+                    cstack = 0
+
             # if we are not in a function, we can start capturing the global variables
-            if in_tfunc == 0 and in_typedef_struct == 0 and global_var_pattern.search(lines[i]):
+            if in_tfunc == 0 and in_param == 0 and in_typedef_struct == 0 and global_var_pattern.search(lines[i]):
                 # capture the global variable
                 varname = global_var_pattern.search(lines[i]).group(1)
                 if not varname.isdigit():   # hackfix
                     global_vars.add(varname)
+
+            # delay one line for param check
+            if in_param == 2:
+                in_param = 0
 
             if "{" in lines[i]:
                 if tstack == 0:
@@ -342,16 +367,9 @@ def parse_functions_c_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict]:
                     in_tfunc = 0
                     tstack = 0
 
-            # if we are extern while tstack not 0, tracked tstack count may be wrong
-            if in_func == 0 and ("extern" in lines[i] or "typedef" in lines[i]):
-                tstack = 0
-                in_tfunc = 0
-
-            if in_func == 0 and global_var_dontuse_pattern.search(lines[i]):
-                in_typedef_struct = 1
-            elif in_func == 0 and in_typedef_struct == 1:
-                in_typedef_struct = 0
-
+            # check if we reached semicolon in typedef struct
+            if in_func == 0 and in_typedef_struct == 1 and tstack == 0 and ';' in lines[i]:
+                typedef_struct_semicolon_reached = 1
             # --- end of global var parsing ---
 
             # capture all lines preceding possible start of function - don't include extern/while/for/if/switch
@@ -517,7 +535,8 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict
     with open(srcpath, 'r') as f:
         lines = f.readlines()
     new_srcpath = mw_workspace_dir + "\\" + mw_srcpath_fnonly + ".pregen.c" 
-    # temporarily changed to c to preprocess this bitch
+    
+    # sanitize before pushing into compiler
     with open(new_srcpath, 'w') as f:
         for i in lines:
             parsedi = i
@@ -525,6 +544,9 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict
                 parsedi.strip().startswith(".else") or parsedi.strip().startswith(".endif")):
                 parsedi = parsedi.replace(".", "#")   
                 # there is no other place that the . could be other than in the beginning, so this should be fine
+            # get rid of the comments
+            if asm_comment_pattern_2.search(parsedi):
+                parsedi = asm_comment_pattern_2.search(parsedi).group(1) + "\n"
             f.write(parsedi)
 
     # and then do some macro preprocessing
@@ -546,7 +568,7 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict
     # remove preprocessed info texts..
     with open(genfile, 'r', encoding = "UTF-8") as f:
         lines = f.readlines()
-        filtered = [line for line in lines if not preprocess_garbage_pattern.search(line)]
+        filtered = [line for line in lines if not line.startswith("#")]
 
     with open(genfile, 'w', encoding = "UTF-8") as f:
         f.writelines(filtered)
@@ -575,8 +597,6 @@ def parse_functions_asm_persrc(srcpath: str, incpaths: list) -> tuple[dict, dict
                 # trim other comments if available
                 if asm_comment_pattern_2.search(line):
                     line = asm_comment_pattern_2.search(line).group(1)
-                elif asm_comment_pattern_3.search(line):
-                    line = asm_comment_pattern_3.search(line).group(1)
                 else:   # the line is clean
                     pass
             elif in_comment == 1:   # inside comment

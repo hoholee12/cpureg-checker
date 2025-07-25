@@ -16,3 +16,8 @@
 #define VAR(x, y) x
 #define PVAR(x, y) volatile x *
 #define MYVAR 1
+
+extern void _hellothere_hello(
+    int len, 
+    void * mydata[],
+    int * mydata2);

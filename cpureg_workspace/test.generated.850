@@ -1,10 +1,13 @@
-# 1 "testsrc/rh850_inc/test.h" 1
        
+extern void _hellothere_hello(
+    int len,
+    void * mydata[],
+    int * mydata2);
 .extern _myglobal1
 .global _hellothere_hello
 _hellothere_hello:
 
-    pushsp r4-r4
+    pushsp r4
     mov r4, r0
     mov 1, r1
     mov r10, r11

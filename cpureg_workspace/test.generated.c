@@ -1,12 +1,17 @@
-# 1 "testsrc/rh850_inc/test.h" 1
        
+extern void _hellothere_hello(
+    int len,
+    void * mydata[],
+    int * mydata2);
 
 volatile int myglobal1[10];
 static volatile int myglobal2 = 1;
 volatile int * myglobal3 = &myglobal1;
 
-void jumphere(int a, int b);
+void jumphere(int a,
+    int b);
 int jumpthere(void);
+int testhere(void){return 0;}
 
 void jumphere(int a, int b){
     printf("a = %d, b = %d\n", a, b);

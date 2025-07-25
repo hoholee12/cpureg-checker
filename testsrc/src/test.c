@@ -4,8 +4,10 @@ VOVAR(int, MYVAR) myglobal1[10];
 SVAR(int, MYVAR) myglobal2 = 1;
 PVAR(int, MYVAR) myglobal3 = &myglobal1;
 
-void jumphere(int a, int b);
+void jumphere(int a, 
+    int b);
 int jumpthere(void);
+int testhere(void){return 0;}
 
 void jumphere(int a, int b){
     printf("a = %d, b = %d\n", a, b);
