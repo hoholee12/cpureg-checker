@@ -3,24 +3,24 @@
 .global _hellothere_hello
 _hellothere_hello:
 #if (TESTASM == 1)
-    pushsp r4
+    push {r4, lr}
     mov r4, r0
     mov 1, r1
-    mov     r10, r11
-    mov     r12, r13
-    ld.w    r1, [r2]
-    add     r3, r1, r4
-    mul     r5, r3, r6
-    sub     r7, r8, r9
-    st.w    r5, [r7]
-    st.w    r12, [r1]
-    br      _jumphere
+    MOV R10, R11
+    MOV R12, R13
+    LDR R1, [R2]
+    ADD R3, R1, R4
+    MUL R5, R3, R6
+    SUB R7, R8, R9
+    STR R5, [R7]
+    STR R12, [R1]
+    B _jumphere
 
-    add     r2, r10, r11
-    ld.w    r14, [r3]
-    st.w    r14, [r2]
-    mov     r15, r0
+    ADD R2, R10, R11
+    LDR R14, [R3]
+    STR R14, [R2]
+    MOV R15, R0
 
-    mov     _myglobal1, r1
-    mov     _myglobal2, r2
+    MOV _myglobal1, R1
+    MOV _myglobal2, R2
 #endif

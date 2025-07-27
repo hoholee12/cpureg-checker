@@ -10,6 +10,7 @@ int jumpthere(void);
 int testhere(void){return 0;}
 
 void jumphere(int a, int b){
+    int myglobal2 = 2; // this must not be picked up as global
     printf("a = %d, b = %d\n", a, b);
     myglobal1[0] = a;
     myglobal1[1] = b;

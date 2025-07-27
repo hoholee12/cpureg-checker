@@ -101,6 +101,7 @@ global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*")
 global_var_dontuse_pattern = re.compile(r"typedef\s*|enum\s*|struct\s*")
 global_var_use_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*") # pretty bad but it works for now
 global_var_use_asm_pattern = re.compile(r"^\s*\w+\s+(.*),")
+local_var_pattern = re.compile(r"\w+\s+(\w+)\s*(?=\[|\s*=|;).*")
 
 def srcpath_isnotc(srcpath: str) -> bool:
     if not srcpath.endswith(".c") and not srcpath.endswith(".h"):
@@ -708,7 +709,8 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list, glob
             for calling in callstack_gen[func]:
                 wf.write(calling + "\n")
 
-    # save global variable list used by functions - TODO: this is bad code
+    # save global variable list used by functions
+    # we will check again for local vars and subtract them from detected global vars (only for c files)
     for func in callstack_gen.keys():
         new_file = callstack_gen_dir + os.path.sep + func + ".globals.txt"
         if srcpath_isnotc(func_unit_tracker[func][2]):
@@ -726,12 +728,19 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list, glob
                             findvar.add(gvar)
                 for gvar in findvar:
                     wf.write(gvar + "\n")
-        else:
+        else: # c file
+            # get local vars
+            local_vars = set()
+            for line in funcs[func].splitlines():
+                if local_var_pattern.search(line):
+                    local_vars.add(local_var_pattern.search(line).group(1))
+            # now we can subtract local vars from global vars
             with open(new_file, 'w') as wf:
                 findvar = set()
                 for gvar in global_vars:
                     if gvar in funcs[func]:
                         findvar.add(gvar)
+                findvar -= local_vars
                 for gvar in findvar:
                     wf.write(gvar + "\n")
 
