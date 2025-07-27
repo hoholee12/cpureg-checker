@@ -5,6 +5,7 @@ extern void _hellothere_hello(
     int * mydata2);
 
 volatile int myglobal1[10];
+volatile int myglobal123[10];
 static volatile int myglobal2 = 1;
 volatile int * myglobal3 = &myglobal1;
 
@@ -16,10 +17,10 @@ int testhere(void){return 0;}
 void jumphere(int a, int b){
     int myglobal2 = 2;
     printf("a = %d, b = %d\n", a, b);
-    myglobal1[0] = a;
-    myglobal1[1] = b;
+    myglobal123[0] = a;
+    myglobal123[1] = b;
 
-    __asm volatile("pop {r4, pc}");
+    __asm volatile("popsp r4-r4");
     jumpthere();
 
 }
@@ -34,7 +35,7 @@ int jumpthere(void)
 
 int main(){
     printf("hello there\n");
-    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "bl _hellothere_hello \n\t" );;
+    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "jr _hellothere_hello \n\t" );;
 
     printf("ive returned\n");
 

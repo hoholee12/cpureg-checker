@@ -1,6 +1,7 @@
 #include "test.h"
 
 VOVAR(int, MYVAR) myglobal1[10];
+VOVAR(int, MYVAR) myglobal123[10];
 SVAR(int, MYVAR) myglobal2 = 1;
 PVAR(int, MYVAR) myglobal3 = &myglobal1;
 
@@ -12,8 +13,8 @@ int testhere(void){return 0;}
 void jumphere(int a, int b){
     int myglobal2 = 2; // this must not be picked up as global
     printf("a = %d, b = %d\n", a, b);
-    myglobal1[0] = a;
-    myglobal1[1] = b;
+    myglobal123[0] = a;
+    myglobal123[1] = b;
 
     SOMERANDOMASMMACRO();
     jumpthere();

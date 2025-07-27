@@ -99,7 +99,7 @@ asm_genericop_pattern = re.compile(r"^\s*\w+\s+(.*)")
 # capture global variables
 global_var_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*")
 global_var_dontuse_pattern = re.compile(r"typedef\s*|enum\s*|struct\s*")
-global_var_use_pattern = re.compile(r"(\w+)\s*(?=\[|\s*=|;).*") # pretty bad but it works for now
+global_var_use_pattern = re.compile(r"(\w+)") # pretty bad but it works for now
 global_var_use_asm_pattern = re.compile(r"^\s*\w+\s+(.*),")
 local_var_pattern = re.compile(r"\w+\s+(\w+)\s*(?=\[|\s*=|;).*")
 
@@ -717,7 +717,7 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list, glob
             with open(new_file, 'w') as wf:
                 findvar = set()
                 # we split the lines
-                lines = funcs[func].strip().split("\n")
+                lines = funcs[func].splitlines()
                 varmatches = []
                 for line in lines:
                     if global_var_use_asm_pattern.search(line):
@@ -734,13 +734,14 @@ def parse_functions_process_callstack(funcs: list, func_unit_tracker: list, glob
             for line in funcs[func].splitlines():
                 if local_var_pattern.search(line):
                     local_vars.add(local_var_pattern.search(line).group(1))
-            # now we can subtract local vars from global vars
             with open(new_file, 'w') as wf:
                 findvar = set()
-                for gvar in global_vars:
-                    if gvar in funcs[func]:
-                        findvar.add(gvar)
-                findvar -= local_vars
+                for line in funcs[func].splitlines():
+                    matches = global_var_use_pattern.findall(line)
+                    for gvar in matches:
+                        if gvar in global_vars:
+                            findvar.add(gvar)
+                findvar -= local_vars # subtract local vars from global vars
                 for gvar in findvar:
                     wf.write(gvar + "\n")
 

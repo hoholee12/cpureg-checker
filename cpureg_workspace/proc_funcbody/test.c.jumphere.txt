@@ -1,10 +1,10 @@
 {
     int myglobal2 = 2;
     printf("a = %d, b = %d\n", a, b);
-    myglobal1[0] = a;
-    myglobal1[1] = b;
+    myglobal123[0] = a;
+    myglobal123[1] = b;
 
-    __asm volatile("pop {r4, pc}");
+    __asm volatile("popsp r4-r4");
     jumpthere();
 
 }
