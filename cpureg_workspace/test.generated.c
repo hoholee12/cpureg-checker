@@ -14,9 +14,9 @@ void jumphere(int a,
 int jumpthere(void);
 int testhere(void){return 0;}
 
-void jumphere(int a, int b){
+void jumphere(int a, int b, int myglobal3){
     int myglobal2 = 2;
-    printf("a = %d, b = %d\n", a, b);
+    printf("a = %d, b = %d, c = %d\n", a, b, myglobal3);
     myglobal123[0] = a;
     myglobal123[1] = b;
 

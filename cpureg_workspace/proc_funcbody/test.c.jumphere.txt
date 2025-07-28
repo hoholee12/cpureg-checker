@@ -1,6 +1,6 @@
 {
     int myglobal2 = 2;
-    printf("a = %d, b = %d\n", a, b);
+    printf("a = %d, b = %d, c = %d\n", a, b, myglobal3);
     myglobal123[0] = a;
     myglobal123[1] = b;
 
