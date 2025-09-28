@@ -51,6 +51,14 @@
             "program": "cpureg-checker.py",
             "console": "integratedTerminal",
             "args": "--callee jumpthere"
+        },
+        {
+            "name": "test gui",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "testfolder/guitest.py",
+            "console": "integratedTerminal",
+            "args": ""
         }
     ]
 }
