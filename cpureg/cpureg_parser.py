@@ -960,6 +960,8 @@ def main():
     group.add_argument("-c", "--caller", type = str, help = "print caller stack of function (test)")
     group.add_argument("-C", "--callee", type = str, help = "print caller stack before reaching function (test)")
     
+    parser.add_argument("-s", "--sourceview", action="store_true", help="launch the source viewer GUI")
+
     args = parser.parse_args()
     target_platform = args.generate
     incpaths = args.include or []
@@ -987,6 +989,17 @@ def main():
     elif args.callee:
         get_callee_flow(args.callee)
         pass
+
+    elif args.sourceview:
+        # Import and launch the source viewer GUI
+        from cpureg.source_viewer import SourceViewer
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication()
+        viewer = SourceViewer()
+        viewer.show()
+
+        sys.exit(app.exec_())
 
     else:
         parser.print_help()

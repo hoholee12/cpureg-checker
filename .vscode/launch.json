@@ -56,9 +56,9 @@
             "name": "test gui",
             "type": "debugpy",
             "request": "launch",
-            "program": "testfolder/guitest.py",
+            "program": "cpureg-checker.py",
             "console": "integratedTerminal",
-            "args": ""
+            "args": "--sourceview"
         }
     ]
 }
