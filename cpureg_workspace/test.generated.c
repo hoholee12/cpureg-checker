@@ -20,7 +20,7 @@ void jumphere(int a, int b, int myglobal3){
     myglobal123[0] = a;
     myglobal123[1] = b;
 
-    __asm volatile("popsp r4-r4");
+    __asm volatile("pop {r4, pc}");
     jumpthere();
 
 }
@@ -35,7 +35,7 @@ int jumpthere(void)
 
 int main(){
     printf("hello there\n");
-    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "jr _hellothere_hello \n\t" );;
+    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "bl _hellothere_hello \n\t" );;
 
     printf("ive returned\n");
 
