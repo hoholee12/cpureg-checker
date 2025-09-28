@@ -2,6 +2,7 @@ import os
 import subprocess
 import shutil
 from PIL import Image
+import pip
 
 def make_icon(png_path, ico_path):
     if not os.path.exists(png_path):
@@ -43,6 +44,8 @@ if __name__ == "__main__":
     ico_file = "cpureg.ico"
     script_file = "cpureg-checker.py"
     output_name = "cpureg-checker"
+
+    pip.main(['install', '-r', 'requirements.txt'])
 
     make_icon(png_file, ico_file)
     build_executable(script_file, ico_file, output_name)
