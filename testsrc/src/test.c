@@ -7,7 +7,7 @@ PVAR(int, MYVAR) myglobal3 = &myglobal1;
 
 void jumphere(int a, 
     int b);
-int jumpthere(void);
+int HELLOTHERE(void);
 int testhere(void){return 0;}
 
 void jumphere(int a, int b, int myglobal3){
@@ -17,15 +17,17 @@ void jumphere(int a, int b, int myglobal3){
     myglobal123[1] = b;
 
     SOMERANDOMASMMACRO();
-    jumpthere();
+    HELLOTHERE();
 
 }
 const int myglobal4[10] = {
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9
 };
-int jumpthere(void)
+int HELLOTHERE(void)
 {
     printf("jumping there %d\n", myglobal4[3]);
+
+    SOMERANDOMASMMACRO2();
     return 0;
 }
 

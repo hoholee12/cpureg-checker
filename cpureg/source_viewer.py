@@ -1,22 +1,32 @@
 import sys
 import os
+import json
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout, QSplitter, QTreeView,
     QTextBrowser, QMenuBar, QMessageBox,
     QDialog, QLineEdit, QPushButton, QHBoxLayout,
-    QFormLayout, QFileDialog
+    QFormLayout, QFileDialog, QComboBox, QLabel
 )
 from PySide6.QtGui import QAction, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QUrl
 
 class GenerateDialog(QDialog):
+    HISTORY_FILE = "history.txt"
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Generate")
         self.setModal(True)
-        self.resize(600, 250)  # Make the dialog much larger
+        self.resize(600, 250)
         layout = QVBoxLayout(self)
+
+        # History dropdown
+        self.history_combo = QComboBox()
+        self.load_history()
+        self.history_combo.currentIndexChanged.connect(self.on_history_selected)
+        layout.addWidget(QLabel("History:"))
+        layout.addWidget(self.history_combo)
 
         form_layout = QFormLayout()
         main_path_layout = QHBoxLayout()
@@ -42,6 +52,26 @@ class GenerateDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         self.browse_btn.clicked.connect(self.browse_main_path)
 
+    def load_history(self):
+        self.history = []
+        if os.path.exists(self.HISTORY_FILE):
+            try:
+                with open(self.HISTORY_FILE, "r", encoding="utf-8") as f:
+                    self.history = json.load(f)
+            except Exception:
+                self.history = []
+        self.history_combo.clear()
+        for entry in self.history:
+            main_path = entry.get("main_path", "")
+            include_paths = ";".join(entry.get("include_paths", []))
+            self.history_combo.addItem(f"{main_path} | {include_paths}")
+
+    def on_history_selected(self, idx):
+        if 0 <= idx < len(self.history):
+            entry = self.history[idx]
+            self.main_path_edit.setText(entry.get("main_path", ""))
+            self.include_paths_edit.setText(";".join(entry.get("include_paths", [])))
+
     def browse_main_path(self):
         path = QFileDialog.getExistingDirectory(self, "Select Main Path")
         if path:
@@ -50,7 +80,22 @@ class GenerateDialog(QDialog):
     def get_paths(self) -> tuple[str, list[str]]:
         main_path = self.main_path_edit.text().strip()
         include_paths = [p.strip() for p in self.include_paths_edit.text().split(';') if p.strip()]
+        self.save_to_history(main_path, include_paths)
         return main_path, include_paths
+
+    def save_to_history(self, main_path, include_paths):
+        entry = {"main_path": main_path, "include_paths": include_paths}
+        # Avoid duplicates
+        if entry not in self.history:
+            self.history.insert(0, entry)
+            # Limit history size
+            self.history = self.history[:20]
+            try:
+                with open(self.HISTORY_FILE, "w", encoding="utf-8") as f:
+                    json.dump(self.history, f, indent=2)
+            except Exception:
+                pass
+        self.load_history()
 
 class SourceViewer(QMainWindow):
     def __init__(self, folder_path="cpureg_workspace/proc_funcbody"):

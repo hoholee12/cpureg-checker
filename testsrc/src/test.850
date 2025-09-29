@@ -1,6 +1,7 @@
 #include "test.h"
 .extern _myglobal1
 .global _hellothere_hello
+.global _hellothere
 _hellothere_hello:
 .if (TESTASM == 1)
     pushsp r4-r4
@@ -23,4 +24,10 @@ _hellothere_hello:
 
     mov     _myglobal1, r1
     mov     _myglobal2, r2
+
+    jr      _hellothere
 .endif
+
+_hellothere:
+    pushsp r4-r4
+    nop

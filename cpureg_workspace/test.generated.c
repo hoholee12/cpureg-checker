@@ -11,7 +11,7 @@ volatile int * myglobal3 = &myglobal1;
 
 void jumphere(int a,
     int b);
-int jumpthere(void);
+int HELLOTHERE(void);
 int testhere(void){return 0;}
 
 void jumphere(int a, int b, int myglobal3){
@@ -20,22 +20,24 @@ void jumphere(int a, int b, int myglobal3){
     myglobal123[0] = a;
     myglobal123[1] = b;
 
-    __asm volatile("pop {r4, pc}");
-    jumpthere();
+    __asm volatile("popsp r4-r4");
+    HELLOTHERE();
 
 }
 const int myglobal4[10] = {
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9
 };
-int jumpthere(void)
+int HELLOTHERE(void)
 {
     printf("jumping there %d\n", myglobal4[3]);
+
+    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "jr _hellothere_hello \n\t" );;
     return 0;
 }
 
 int main(){
     printf("hello there\n");
-    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "bl _hellothere_hello \n\t" );;
+    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "jr _hellothere_hello \n\t" );;
 
     printf("ive returned\n");
 

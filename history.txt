@@ -1,0 +1,13 @@
+[
+  {
+    "main_path": "",
+    "include_paths": []
+  },
+  {
+    "main_path": "C:/Users/hoholee12/Documents/GitHub/cpureg-checker/cpureg_workspace/proc_funcbody",
+    "include_paths": [
+      "test",
+      "test2"
+    ]
+  }
+]
