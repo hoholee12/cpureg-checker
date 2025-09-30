@@ -10,7 +10,7 @@ import hashlib
 class CpuRegParser:
     
     # workaround for case-insensitive filesystem
-    def filename_hashgen(self, func: str) -> str:
+    def funcname_hashgen(self, func: str) -> str:
         htemp = hashlib.sha1(func.encode("utf-8")).hexdigest()[:8]
         return func + "." + htemp + ".txt"
 
@@ -128,7 +128,7 @@ class CpuRegParser:
         if self.listup == 1:
             self.listup_set.add(func)
 
-        file_to_open = os.path.join(self.callstack_gen_dir, self.filename_hashgen(func))
+        file_to_open = os.path.join(self.callstack_gen_dir, self.funcname_hashgen(func))
         try:
             with open(file_to_open, 'r', encoding="UTF-8") as f:
                 lines = f.readlines()
@@ -712,7 +712,7 @@ class CpuRegParser:
 
         # save lists of all callstacks
         for func in callstack_gen.keys():
-            new_file = os.path.join(self.callstack_gen_dir, self.filename_hashgen(func))
+            new_file = os.path.join(self.callstack_gen_dir, self.funcname_hashgen(func))
             with open(new_file, 'w') as wf:
                 for calling in callstack_gen[func]:
                     wf.write(calling + "\n")
@@ -720,7 +720,7 @@ class CpuRegParser:
         # save global variable list used by functions
         # we will check again for local vars and subtract them from detected global vars (only for c files)
         for func in callstack_gen.keys():
-            new_file = os.path.join(self.callstack_gen_dir, "globals." + self.filename_hashgen(func))
+            new_file = os.path.join(self.callstack_gen_dir, "globals." + self.funcname_hashgen(func))
             if self.srcpath_isnotc(func_unit_tracker[func][2]):
                 with open(new_file, 'w') as wf:
                     findvar = set()
@@ -763,7 +763,7 @@ class CpuRegParser:
 
         # save processed function bodies
         for func in funcs.keys():
-            new_file = os.path.join(self.proc_funcbody_dir, func_unit_tracker[func][2] + "." + self.filename_hashgen(func))
+            new_file = os.path.join(self.proc_funcbody_dir, func_unit_tracker[func][2] + "." + self.funcname_hashgen(func))
             with open(new_file, 'w') as wf:
                 wf.write(funcs[func])
 

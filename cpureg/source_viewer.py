@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QUrl
-import cpureg_parser
+from cpureg.cpureg_parser import CpuRegParser
 
 class GenerateDialog(QDialog):
     HISTORY_FILE = "history.txt"
@@ -103,7 +103,7 @@ class SourceViewer(QMainWindow):
         super().__init__()
 
         # get CpuRegParser (for hashed filename)
-        self.cpureg = cpureg_parser.CpuRegParser()
+        self.cpureg = CpuRegParser()
 
         self.setWindowTitle("Source Viewer")
         self.resize(1000, 600)
@@ -165,12 +165,12 @@ class SourceViewer(QMainWindow):
         self.model.setHorizontalHeaderLabels(['Source Files'])
         groups = {}
         for fname in os.listdir(self.folder_path):
-            if fname.count('.') < 3 or not fname.endswith('.txt'):
+            if fname.count('.') < 4 or not fname.endswith('.txt'):
                 continue
             parts = fname.split('.')
-            src_name = '.'.join(parts[:-3])
-            src_ext = parts[-3]
-            func_name = parts[-2]
+            src_name = '.'.join(parts[:-4])
+            src_ext = parts[-4]
+            func_name = parts[-3]
             group_key = f"{src_name}.{src_ext}"
             groups.setdefault(group_key, []).append((func_name, fname))
         for src_file, funcs in sorted(groups.items()):
