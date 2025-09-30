@@ -1,8 +1,12 @@
        
 extern void _hellothere_hello(
-    int len,
+    SomeType len,
     void * mydata[],
     int * mydata2);
+
+typedef struct _SomeType {
+    int hello;
+} SomeType;
 
 volatile int myglobal1[10];
 volatile int myglobal123[10];

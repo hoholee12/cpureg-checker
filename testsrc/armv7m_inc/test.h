@@ -18,6 +18,10 @@
 #define MYVAR 1
 
 extern void _hellothere_hello(
-    int len, 
+    SomeType len, 
     void * mydata[],
     int * mydata2);
+
+typedef struct _SomeType {
+    int hello;
+} SomeType;

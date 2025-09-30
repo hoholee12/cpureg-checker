@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QUrl
+import cpureg_parser
 
 class GenerateDialog(QDialog):
     HISTORY_FILE = "history.txt"
@@ -100,6 +101,10 @@ class GenerateDialog(QDialog):
 class SourceViewer(QMainWindow):
     def __init__(self, folder_path="cpureg_workspace/proc_funcbody"):
         super().__init__()
+
+        # get CpuRegParser (for hashed filename)
+        self.cpureg = cpureg_parser.CpuRegParser()
+
         self.setWindowTitle("Source Viewer")
         self.resize(1000, 600)
 

@@ -8,6 +8,12 @@ import argparse
 import hashlib
 
 class CpuRegParser:
+    
+    # workaround for case-insensitive filesystem
+    def filename_hashgen(self, func: str) -> str:
+        htemp = hashlib.sha1(func.encode("utf-8")).hexdigest()[:8]
+        return func + "." + htemp + ".txt"
+
     def __init__(self):
         # args
         self.mw_workspace_dir = "cpureg_workspace"
@@ -122,7 +128,7 @@ class CpuRegParser:
         if self.listup == 1:
             self.listup_set.add(func)
 
-        file_to_open = os.path.join(self.callstack_gen_dir, func + ".txt")
+        file_to_open = os.path.join(self.callstack_gen_dir, self.filename_hashgen(func))
         try:
             with open(file_to_open, 'r', encoding="UTF-8") as f:
                 lines = f.readlines()
@@ -183,7 +189,7 @@ class CpuRegParser:
         # bring all the data back
         for root, dirs, files in os.walk(self.callstack_gen_dir):
             for file in files:
-                if file.endswith(".txt"):
+                if not file.startswith("globals.") and file.endswith(".txt"):   # dont read globals.xxx.txt
                     test_files.append(os.path.join(root, file))
         calling_func_gen = {}
         for file in test_files:
@@ -679,11 +685,6 @@ class CpuRegParser:
             print("\nreassemble:\n" + self.parse_functions_asm_reassemble_branches(asm_func, tmp_funcs))
 
         return asm_funcs, func_unit_tracker_asm
-    
-    # workaround for case-insensitive filesystem
-    def filename_hashgen(self, func: str) -> str:
-        htemp = hashlib.sha1(func.encode("utf-8")).hexdigest()[:8]
-        return func + "." + htemp + ".txt"
 
     # TODO: process both asm and c src for callstack
     def parse_functions_process_callstack(self, funcs: list, func_unit_tracker: list, global_vars: set, param_vars: dict):
