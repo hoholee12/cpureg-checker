@@ -1,2 +1,2 @@
-myglobal2
 myglobal1
+myglobal2

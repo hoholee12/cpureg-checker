@@ -1,5 +1,37 @@
 [
   {
+    "include_paths": [
+      "testsrc/src",
+      "testsrc/rh850_inc",
+      "C:/Users/hoholee12/Documents/GitHub/cpureg-checker/cpureg"
+    ],
+    "platform": "rh850"
+  },
+  {
+    "main_path": "C:/Users/hoholee12/Documents/GitHub/cpureg-checker/testsrc/src",
+    "include_paths": [
+      "testsrc/src",
+      "testsrc/rh850_inc"
+    ],
+    "platform": "rh850"
+  },
+  {
+    "main_path": "C:/Users/hoholee12/Documents/GitHub/cpureg-checker/cpureg_workspace/proc_funcbody",
+    "include_paths": [
+      "test",
+      "test2"
+    ],
+    "platform": "armv7m"
+  },
+  {
+    "main_path": "C:/Users/hoholee12/Documents/GitHub/cpureg-checker/cpureg_workspace/proc_funcbody",
+    "include_paths": [
+      "test",
+      "test2"
+    ],
+    "platform": "rh850"
+  },
+  {
     "main_path": "",
     "include_paths": []
   },

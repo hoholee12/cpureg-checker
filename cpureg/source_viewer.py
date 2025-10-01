@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QUrl
-from cpureg.cpureg_parser import CpuRegParser
+from cpureg.cpureg_parser import CpuRegParser, CpuRegApp
 
 class GenerateDialog(QDialog):
     HISTORY_FILE = "history.txt"
@@ -19,7 +19,7 @@ class GenerateDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Generate")
         self.setModal(True)
-        self.resize(600, 250)
+        self.resize(600, 300)
         layout = QVBoxLayout(self)
 
         # History select list
@@ -30,16 +30,28 @@ class GenerateDialog(QDialog):
         layout.addWidget(self.history_list)
 
         form_layout = QFormLayout()
-        main_path_layout = QHBoxLayout()
-        self.main_path_edit = QLineEdit()
-        self.browse_btn = QPushButton("Browse")
-        main_path_layout.addWidget(self.main_path_edit)
-        main_path_layout.addWidget(self.browse_btn)
-        form_layout.addRow("Main path to analyze:", main_path_layout)
 
-        self.include_paths_edit = QLineEdit()
-        self.include_paths_edit.setPlaceholderText("Separate paths with semicolon ';'")
-        form_layout.addRow("Include paths:", self.include_paths_edit)
+        # Include paths input with explorer and add button
+        include_path_layout = QHBoxLayout()
+        self.include_path_edit = QLineEdit()
+        self.include_browse_btn = QPushButton("Browse")
+        self.include_add_btn = QPushButton("Add")
+        include_path_layout.addWidget(self.include_path_edit)
+        include_path_layout.addWidget(self.include_browse_btn)
+        include_path_layout.addWidget(self.include_add_btn)
+        form_layout.addRow("Include path:", include_path_layout)
+
+        # List of accumulated include paths
+        self.include_paths_list = QListWidget()
+        self.include_paths_list.itemDoubleClicked.connect(self.on_include_path_double_clicked)
+        form_layout.addRow("Selected include paths:", self.include_paths_list)
+
+        # Target platform input
+        self.platform_combo = QComboBox()
+        self.cpureg = CpuRegParser()
+        self.platform_combo.addItems(self.cpureg.supported_platforms)
+        form_layout.addRow("Target platform:", self.platform_combo)
+
         layout.addLayout(form_layout)
 
         button_layout = QHBoxLayout()
@@ -51,7 +63,8 @@ class GenerateDialog(QDialog):
 
         self.generate_btn.clicked.connect(self.accept)
         self.cancel_btn.clicked.connect(self.reject)
-        self.browse_btn.clicked.connect(self.browse_main_path)
+        self.include_browse_btn.clicked.connect(self.browse_include_path)
+        self.include_add_btn.clicked.connect(self.add_include_path)
 
     def load_history(self):
         from PySide6.QtWidgets import QListWidgetItem
@@ -65,34 +78,49 @@ class GenerateDialog(QDialog):
         if hasattr(self, "history_list"):
             self.history_list.clear()
             for entry in self.history:
-                main_path = entry.get("main_path", "")
                 include_paths = ";".join(entry.get("include_paths", []))
-                item = QListWidgetItem(f"{main_path} | {include_paths}")
+                platform = entry.get("platform", "armv7m")
+                item = QListWidgetItem(f"{include_paths} | {platform}")
                 self.history_list.addItem(item)
 
     def on_history_selected(self, idx):
         if 0 <= idx < len(self.history):
             entry = self.history[idx]
-            self.main_path_edit.setText(entry.get("main_path", ""))
-            self.include_paths_edit.setText(";".join(entry.get("include_paths", [])))
+            self.include_paths_list.clear()
+            for path in entry.get("include_paths", []):
+                self.include_paths_list.addItem(path)
+            platform = entry.get("platform", "armv7m")
+            idx = self.platform_combo.findText(platform)
+            if idx >= 0:
+                self.platform_combo.setCurrentIndex(idx)
 
-    def browse_main_path(self):
-        path = QFileDialog.getExistingDirectory(self, "Select Main Path")
+    def browse_include_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Include Path")
         if path:
-            self.main_path_edit.setText(path)
+            self.include_path_edit.setText(path)
 
-    def get_paths(self) -> tuple[str, list[str]]:
-        main_path = self.main_path_edit.text().strip()
-        include_paths = [p.strip() for p in self.include_paths_edit.text().split(';') if p.strip()]
-        self.save_to_history(main_path, include_paths)
-        return main_path, include_paths
+    def add_include_path(self):
+        path = self.include_path_edit.text().strip()
+        if path and path not in [self.include_paths_list.item(i).text() for i in range(self.include_paths_list.count())]:
+            self.include_paths_list.addItem(path)
+        self.include_path_edit.clear()
 
-    def save_to_history(self, main_path, include_paths):
-        entry = {"main_path": main_path, "include_paths": include_paths}
-        # Avoid duplicates
+    def on_include_path_double_clicked(self, item):
+        # Remove from list and put in the browse input box
+        self.include_path_edit.setText(item.text())
+        row = self.include_paths_list.row(item)
+        self.include_paths_list.takeItem(row)
+
+    def get_paths(self) -> tuple[list[str], str]:
+        include_paths = [self.include_paths_list.item(i).text() for i in range(self.include_paths_list.count())]
+        platform = self.platform_combo.currentText()
+        self.save_to_history(include_paths, platform)
+        return include_paths, platform
+
+    def save_to_history(self, include_paths, platform):
+        entry = {"include_paths": include_paths, "platform": platform}
         if entry not in self.history:
             self.history.insert(0, entry)
-            # Limit history size
             self.history = self.history[:20]
             try:
                 with open(self.HISTORY_FILE, "w", encoding="utf-8") as f:
@@ -267,21 +295,23 @@ class SourceViewer(QMainWindow):
     def on_generate(self):
         dialog = GenerateDialog(self)
         if dialog.exec():
-            main_path, include_paths = dialog.get_paths()
-            # Apply the main path to the source tree and viewer
-            if main_path and os.path.isdir(main_path):
-                self.folder_path = os.path.abspath(main_path)
-                self.populate_tree()  # Rebuild tree for new folder
+            include_paths, target_platform = dialog.get_paths()
+            try:
+                CpuRegApp().check_gcc()
+                srcpaths = self.cpureg.parse_per_target_platform(target_platform, include_paths)
+                self.cpureg.parse_workspace_cleanup()
+                self.cpureg.parse_functions(srcpaths, include_paths)
+                self.populate_tree()
                 QMessageBox.information(
                     self,
                     "Generate",
-                    f"Main path set to: {main_path}\nInclude paths: {', '.join(include_paths)}"
+                    f"Generation finished!\nInclude paths: {', '.join(include_paths)}\nPlatform: {target_platform}"
                 )
-            else:
-                QMessageBox.warning(
+            except Exception as e:
+                QMessageBox.critical(
                     self,
-                    "Invalid Path",
-                    "The main path you entered does not exist or is not a directory."
+                    "Generate Error",
+                    f"An error occurred during generation:\n{e}"
                 )
 
     def on_report(self):
