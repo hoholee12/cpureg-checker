@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QSplitter, QTreeView,
     QTextBrowser, QMenuBar, QMessageBox,
     QDialog, QLineEdit, QPushButton, QHBoxLayout,
-    QFormLayout, QFileDialog, QComboBox, QLabel
+    QFormLayout, QFileDialog, QComboBox, QLabel, QListWidget
 )
 from PySide6.QtGui import QAction, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QUrl
@@ -22,12 +22,12 @@ class GenerateDialog(QDialog):
         self.resize(600, 250)
         layout = QVBoxLayout(self)
 
-        # History dropdown
-        self.history_combo = QComboBox()
-        self.load_history()
-        self.history_combo.currentIndexChanged.connect(self.on_history_selected)
+        # History select list
         layout.addWidget(QLabel("History:"))
-        layout.addWidget(self.history_combo)
+        self.history_list = QListWidget()
+        self.load_history()
+        self.history_list.currentRowChanged.connect(self.on_history_selected)
+        layout.addWidget(self.history_list)
 
         form_layout = QFormLayout()
         main_path_layout = QHBoxLayout()
@@ -54,6 +54,7 @@ class GenerateDialog(QDialog):
         self.browse_btn.clicked.connect(self.browse_main_path)
 
     def load_history(self):
+        from PySide6.QtWidgets import QListWidgetItem
         self.history = []
         if os.path.exists(self.HISTORY_FILE):
             try:
@@ -61,11 +62,13 @@ class GenerateDialog(QDialog):
                     self.history = json.load(f)
             except Exception:
                 self.history = []
-        self.history_combo.clear()
-        for entry in self.history:
-            main_path = entry.get("main_path", "")
-            include_paths = ";".join(entry.get("include_paths", []))
-            self.history_combo.addItem(f"{main_path} | {include_paths}")
+        if hasattr(self, "history_list"):
+            self.history_list.clear()
+            for entry in self.history:
+                main_path = entry.get("main_path", "")
+                include_paths = ";".join(entry.get("include_paths", []))
+                item = QListWidgetItem(f"{main_path} | {include_paths}")
+                self.history_list.addItem(item)
 
     def on_history_selected(self, idx):
         if 0 <= idx < len(self.history):
@@ -185,7 +188,7 @@ class SourceViewer(QMainWindow):
             self.tree.setExpanded(src_item.index(), True)
 
     def load_call_list(self, func_name: str) -> set[str]:
-        call_list_file = os.path.join("cpureg_workspace", "callstack_gen", f"{func_name}.txt")
+        call_list_file = os.path.join("cpureg_workspace", "callstack_gen", self.cpureg.funcname_hashgen(func_name))
         print(f"[DEBUG] Reading call list file: {call_list_file}")
         functions = set()
         if os.path.exists(call_list_file):
