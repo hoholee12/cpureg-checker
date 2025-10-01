@@ -1,4 +1,5 @@
 import sys
+import time
 import os
 import json
 from PySide6.QtWidgets import (
@@ -192,6 +193,7 @@ class SourceViewer(QMainWindow):
         self.functions = set()  # will be set per file
 
     def populate_tree(self):
+        time.sleep(1)
         self.model.clear()
         self.model.setHorizontalHeaderLabels(['Source Files'])
         groups = {}

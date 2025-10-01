@@ -2,6 +2,27 @@
   {
     "include_paths": [
       "testsrc/src",
+      "C:/Users/hoholee12/Documents/GitHub/cpureg-checker/testsrc/armv7m_inc"
+    ],
+    "platform": "armv7m"
+  },
+  {
+    "include_paths": [
+      "testsrc/src",
+      "testsrc/rh850_inc"
+    ],
+    "platform": "armv7m"
+  },
+  {
+    "include_paths": [
+      "testsrc/src",
+      "testsrc/rh850_inc"
+    ],
+    "platform": "rh850"
+  },
+  {
+    "include_paths": [
+      "testsrc/src",
       "testsrc/rh850_inc",
       "C:/Users/hoholee12/Documents/GitHub/cpureg-checker/cpureg"
     ],
