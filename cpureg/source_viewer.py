@@ -134,29 +134,31 @@ class SourceViewer(QMainWindow):
     def __init__(self, folder_path="cpureg_workspace/proc_funcbody"):
         super().__init__()
 
-        # get CpuRegParser (for hashed filename)
         self.cpureg = CpuRegParser()
-
         self.setWindowTitle("Source Viewer")
         self.resize(1000, 600)
 
-        # Menu Bar with layers
+        # Function navigation path and bar
+        self.function_path = []
+        self.path_bar = QLineEdit()
+        self.path_bar.setReadOnly(True)
+        self.back_btn = QPushButton("Back")
+        self.back_btn.setFixedWidth(60)
+        self.back_btn.clicked.connect(self.on_back)
+
+        # Menu Bar with layers (unchanged)
         menubar = QMenuBar(self)
         self.setMenuBar(menubar)
-
         file_menu = menubar.addMenu("File")
         tools_menu = menubar.addMenu("Tools")
-
         about_action = QAction("About", self)
         quit_action = QAction("Quit", self)
         file_menu.addAction(about_action)
         file_menu.addAction(quit_action)
-
         generate_action = QAction("Generate", self)
         report_action = QAction("Report", self)
         tools_menu.addAction(generate_action)
         tools_menu.addAction(report_action)
-
         generate_action.triggered.connect(self.on_generate)
         report_action.triggered.connect(self.on_report)
         about_action.triggered.connect(self.on_about)
@@ -164,16 +166,20 @@ class SourceViewer(QMainWindow):
 
         main_widget = QWidget()
         layout = QVBoxLayout(main_widget)
-        splitter = QSplitter(Qt.Horizontal)
 
-        # Custom tree model for grouping
+        # Add path bar and back button at the top
+        path_bar_layout = QHBoxLayout()
+        path_bar_layout.addWidget(self.path_bar)
+        path_bar_layout.addWidget(self.back_btn)
+        layout.addLayout(path_bar_layout)
+
+        splitter = QSplitter(Qt.Horizontal)
         self.folder_path = os.path.abspath(folder_path)
         self.tree = QTreeView()
         self.tree.setHeaderHidden(True)
         self.tree.setSelectionMode(QTreeView.SingleSelection)
-        self.tree.clicked.connect(self.on_file_selected)
+        self.tree.clicked.connect(lambda idx: self.on_file_selected(idx, True))
         self.tree.setColumnWidth(0, 200)
-
         self.model = QStandardItemModel()
         self.model.setHorizontalHeaderLabels(['Source Files'])
         self.tree.setModel(self.model)
@@ -191,6 +197,10 @@ class SourceViewer(QMainWindow):
         self.setCentralWidget(main_widget)
 
         self.functions = set()  # will be set per file
+
+    def update_path_bar(self):
+        # Use Unicode right arrow for better compatibility
+        self.path_bar.setText(" \u2192 ".join(self.function_path))
 
     def populate_tree(self):
         time.sleep(1)
@@ -262,12 +272,15 @@ class SourceViewer(QMainWindow):
         ]
         return "\n".join(numbered)
 
-    def on_file_selected(self, index):
+    def on_file_selected(self, index, reset_path=True):
         item = self.model.itemFromIndex(index)
         if item and item.parent():  # Only leaf nodes (function names)
+            func_name = item.text()
+            if reset_path:
+                self.function_path = [func_name]
+                self.update_path_bar()
             full_fname = item.data(Qt.UserRole)
             file_path = os.path.join(self.folder_path, full_fname)
-            func_name = item.text()
             self.functions = self.load_call_list(func_name)
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
@@ -281,6 +294,10 @@ class SourceViewer(QMainWindow):
 
     def on_function_clicked(self, url: QUrl):
         func_name = url.toString()
+        # Add to navigation path only if not already last
+        if not self.function_path or self.function_path[-1] != func_name:
+            self.function_path.append(func_name)
+        self.update_path_bar()
         # Search for the function in the tree and select it
         for i in range(self.model.rowCount()):
             src_item = self.model.item(i)
@@ -290,9 +307,26 @@ class SourceViewer(QMainWindow):
                     index = func_item.index()
                     self.tree.setCurrentIndex(index)
                     self.tree.scrollTo(index)
-                    self.on_file_selected(index)
+                    self.on_file_selected(index, reset_path=False)
                     return
         self.viewer.setHtml(f"<b>Function file not found for: {func_name}</b>")
+
+    def on_back(self):
+        if len(self.function_path) > 1:
+            self.function_path.pop()
+            self.update_path_bar()
+            prev_func = self.function_path[-1]
+            # Search for the function in the tree and select it
+            for i in range(self.model.rowCount()):
+                src_item = self.model.item(i)
+                for j in range(src_item.rowCount()):
+                    func_item = src_item.child(j)
+                    if func_item.text() == prev_func:
+                        index = func_item.index()
+                        self.tree.setCurrentIndex(index)
+                        self.tree.scrollTo(index)
+                        self.on_file_selected(index, reset_path=False)
+                        return
 
     def on_generate(self):
         dialog = GenerateDialog(self)
