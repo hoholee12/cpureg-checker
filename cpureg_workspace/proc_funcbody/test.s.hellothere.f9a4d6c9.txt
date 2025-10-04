@@ -1,2 +1,0 @@
-push {r4, lr}
-nop

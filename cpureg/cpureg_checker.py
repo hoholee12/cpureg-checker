@@ -54,7 +54,8 @@ class CpuRegApp:
             self.parser.get_callee_flow(args.callee)
             pass
 
-        elif args.sourceview:
+        # elif args.sourceview:
+        else:
             from cpureg.source_viewer import SourceViewer
             from PySide6.QtWidgets import QApplication
 
@@ -63,9 +64,9 @@ class CpuRegApp:
             viewer = SourceViewer()
             viewer.show()
             sys.exit(app.exec())
-        else:
-            arg_parser.print_help()
-            sys.exit(1)
+        # else:
+        #     arg_parser.print_help()
+        #     sys.exit(1)
 
 if __name__ == "__main__":
     CpuRegApp().main()
