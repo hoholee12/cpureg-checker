@@ -1,3 +1,3 @@
-from cpureg.cpureg_parser import CpuRegApp
+from cpureg.cpureg_checker import CpuRegApp
 
 CpuRegApp().main()

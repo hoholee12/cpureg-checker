@@ -11,7 +11,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction, QStandardItemModel, QStandardItem
 from PySide6.QtCore import Qt, QUrl
-from cpureg.cpureg_parser import CpuRegParser, CpuRegApp
+from cpureg.cpureg_parser import CpuRegParser
+from cpureg.cpureg_checker import CpuRegApp # for check_gcc
 
 class GenerateDialog(QDialog):
     HISTORY_FILE = "history.txt"
@@ -26,7 +27,6 @@ class GenerateDialog(QDialog):
         # History select list
         layout.addWidget(QLabel("History:"))
         self.history_list = QListWidget()
-        self.load_history()
         self.history_list.currentRowChanged.connect(self.on_history_selected)
         layout.addWidget(self.history_list)
 
@@ -67,6 +67,9 @@ class GenerateDialog(QDialog):
         self.include_browse_btn.clicked.connect(self.browse_include_path)
         self.include_add_btn.clicked.connect(self.add_include_path)
 
+        # Now it's safe to call load_history
+        self.load_history()
+
     def load_history(self):
         from PySide6.QtWidgets import QListWidgetItem
         self.history = []
@@ -80,8 +83,12 @@ class GenerateDialog(QDialog):
             self.history_list.clear()
             for entry in self.history:
                 include_paths = ";".join(entry.get("include_paths", []))
-                platform = entry.get("platform", "armv7m")
-                item = QListWidgetItem(f"{include_paths} | {platform}")
+                platform = entry.get("platform")
+                if platform is None and self.platform_combo.count() > 0:
+                    platform = self.platform_combo.itemText(0)
+                elif platform is None:
+                    platform = ""
+                item = QListWidgetItem(include_paths + " | " + platform)
                 self.history_list.addItem(item)
 
     def on_history_selected(self, idx):
@@ -90,10 +97,13 @@ class GenerateDialog(QDialog):
             self.include_paths_list.clear()
             for path in entry.get("include_paths", []):
                 self.include_paths_list.addItem(path)
-            platform = entry.get("platform", "armv7m")
-            idx = self.platform_combo.findText(platform)
-            if idx >= 0:
-                self.platform_combo.setCurrentIndex(idx)
+            platform = entry.get("platform")
+            if platform is None:
+                # Default to first supported platform if not present
+                platform = self.platform_combo.itemText(0)
+            platform_idx = self.platform_combo.findText(platform)
+            if platform_idx >= 0:
+                self.platform_combo.setCurrentIndex(platform_idx)
 
     def browse_include_path(self):
         path = QFileDialog.getExistingDirectory(self, "Select Include Path")
@@ -131,6 +141,41 @@ class GenerateDialog(QDialog):
         self.load_history()
 
 class SourceViewer(QMainWindow):
+    
+    dark_stylesheet = """
+QWidget {
+    background-color: #232629;
+    color: #f0f0f0;
+}
+QLineEdit, QTextEdit, QTextBrowser, QListWidget, QComboBox {
+    background-color: #2b2b2b;
+    color: #f0f0f0;
+    border: 1px solid #444;
+}
+QMenuBar, QMenu, QMenu::item {
+    background-color: #232629;
+    color: #f0f0f0;
+}
+QTreeView {
+    background-color: #232629;
+    color: #f0f0f0;
+    alternate-background-color: #2b2b2b;
+}
+QPushButton {
+    background-color: #444;
+    color: #f0f0f0;
+    border: 1px solid #666;
+    border-radius: 3px;
+    padding: 3px 8px;
+}
+QPushButton:hover {
+    background-color: #555;
+}
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #232629;
+}
+"""
+
     def __init__(self, folder_path="cpureg_workspace/proc_funcbody"):
         super().__init__()
 
@@ -199,7 +244,6 @@ class SourceViewer(QMainWindow):
         self.functions = set()  # will be set per file
 
     def update_path_bar(self):
-        # Use Unicode right arrow for better compatibility
         self.path_bar.setText(" \u2192 ".join(self.function_path))
 
     def populate_tree(self):
@@ -214,7 +258,7 @@ class SourceViewer(QMainWindow):
             src_name = '.'.join(parts[:-4])
             src_ext = parts[-4]
             func_name = parts[-3]
-            group_key = f"{src_name}.{src_ext}"
+            group_key = src_name + "." + src_ext
             groups.setdefault(group_key, []).append((func_name, fname))
         for src_file, funcs in sorted(groups.items()):
             src_item = QStandardItem(src_file)
@@ -229,18 +273,18 @@ class SourceViewer(QMainWindow):
 
     def load_call_list(self, func_name: str) -> set[str]:
         call_list_file = os.path.join("cpureg_workspace", "callstack_gen", self.cpureg.funcname_hashgen(func_name))
-        print(f"[DEBUG] Reading call list file: {call_list_file}")
+        print("[DEBUG] Reading call list file: " + call_list_file)
         functions = set()
         if os.path.exists(call_list_file):
             with open(call_list_file, "r", encoding="utf-8") as f:
                 for line in f:
                     func = line.strip()
-                    print(f"[DEBUG] Call list line: '{func}'")
+                    print("[DEBUG] Call list line: '" + func + "'")
                     if func:
                         functions.add(func)
         else:
-            print(f"[DEBUG] Call list file does not exist: {call_list_file}")
-        print(f"[DEBUG] Final call list for '{func_name}': {functions}")
+            print("[DEBUG] Call list file does not exist: " + call_list_file)
+        print("[DEBUG] Final call list for '" + func_name + "': " + str(functions))
         return functions
 
     def highlight_functions(self, content: str) -> str:
@@ -258,7 +302,12 @@ class SourceViewer(QMainWindow):
             func = match.group(0)
             cmp_func = func.lstrip('_')
             if cmp_func in self.functions or func in self.functions or func in func_set:
-                return f'<a href="{cmp_func}"><span style="color:blue;text-decoration:underline;">{func}</span></a>'
+                # Yellow text for highlight, no background
+                return (
+                    '<a href="' + cmp_func + '">'
+                    '<span style="color:#ffe066; font-weight:bold;">' + func + '</span>'
+                    '</a>'
+                )
             return func
 
         pattern = r'\b_?\w+\b'
@@ -267,7 +316,7 @@ class SourceViewer(QMainWindow):
     def add_line_numbers(self, content: str) -> str:
         lines = content.splitlines()
         numbered = [
-            f'<span style="color:gray;">{str(i+1).rjust(4)}:</span> {line}'
+            '<span style="color:gray;">' + str(i+1).rjust(4) + ':</span> ' + line
             for i, line in enumerate(lines)
         ]
         return "\n".join(numbered)
@@ -289,7 +338,7 @@ class SourceViewer(QMainWindow):
                 with open(file_path, "r", errors="replace") as f:
                     content = f.read()
             numbered_content = self.add_line_numbers(content)
-            html_content = f'<pre style="white-space: pre-wrap;">{self.highlight_functions(numbered_content)}</pre>'
+            html_content = '<pre style="white-space: pre-wrap;">' + self.highlight_functions(numbered_content) + '</pre>'
             self.viewer.setHtml(html_content)
 
     def on_function_clicked(self, url: QUrl):
@@ -309,7 +358,7 @@ class SourceViewer(QMainWindow):
                     self.tree.scrollTo(index)
                     self.on_file_selected(index, reset_path=False)
                     return
-        self.viewer.setHtml(f"<b>Function file not found for: {func_name}</b>")
+        self.viewer.setHtml("<b>Function file not found for: " + func_name + "</b>")
 
     def on_back(self):
         if len(self.function_path) > 1:
@@ -338,16 +387,20 @@ class SourceViewer(QMainWindow):
                 self.cpureg.parse_workspace_cleanup()
                 self.cpureg.parse_functions(srcpaths, include_paths)
                 self.populate_tree()
+                # Reset source view after generate
+                self.viewer.clear()
+                self.function_path = []
+                self.update_path_bar()
                 QMessageBox.information(
                     self,
                     "Generate",
-                    f"Generation finished!\nInclude paths: {', '.join(include_paths)}\nPlatform: {target_platform}"
+                    "Generation finished!\nInclude paths: " + ", ".join(include_paths) + "\nPlatform: " + target_platform
                 )
             except Exception as e:
                 QMessageBox.critical(
                     self,
                     "Generate Error",
-                    f"An error occurred during generation:\n{e}"
+                    "An error occurred during generation:\n" + str(e)
                 )
 
     def on_report(self):
@@ -355,4 +408,5 @@ class SourceViewer(QMainWindow):
 
     def on_about(self):
         QMessageBox.information(self, "About", "Source Viewer\nVersion 1.0")
+
 
