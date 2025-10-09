@@ -1,10 +1,63 @@
 import re
+import os
 
 class CpuRegAsmParser():
     # scour through everywhere for VTOR(armv7m) or SCBP(rh850) insertion code
     # attempt to locate the vector table.
-    # def parse_arch_vectors(self, ):
+    def parse_arch_vectors(self, search_loc: str, arch: str) -> str:
+        # Returns the name of the vector table assigned to VTOR (armv7m) or SCBP (rh850)
+        genfiles = []
+        for root, dirs, files in os.walk(search_loc):
+            for file in files:
+                if ".generated." in file:
+                    genfiles.append(os.path.join(root, file))
 
+        reg_name = ""
+        if arch == "armv7m":
+            reg_name = "VTOR"
+        elif arch == "rh850":
+            reg_name = "SCBP"
+        else:
+            print("Unknown architecture: " + arch)
+            return ""
+
+        # Case-insensitive pattern for direct assignment
+        assign_pattern = re.compile(r"\b" + reg_name + r"\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+        # Pattern for GPR assignment (e.g. r0 = VectorTableName)
+        gpr_assign_pattern = re.compile(r"\b(r\d+)\s*=\s*([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+        # Pattern for system register assignment from GPR (e.g. VTOR = r0)
+        sysreg_from_gpr_pattern = re.compile(r"\b" + reg_name + r"\s*=\s*(r\d+)", re.IGNORECASE)
+
+        for file in genfiles:
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                    # First, check for direct assignment
+                    for line in lines:
+                        m = assign_pattern.search(line)
+                        if m:
+                            vector_table = m.group(1)
+                            print("Found direct assignment in " + file + ": " + reg_name + " = " + vector_table)
+                            return vector_table
+                    # Next, check for indirect assignment via GPR
+                    gpr_map = {}
+                    for i, line in enumerate(lines):
+                        gpr_match = gpr_assign_pattern.search(line)
+                        if gpr_match:
+                            gpr = gpr_match.group(1)
+                            value = gpr_match.group(2)
+                            gpr_map[gpr] = value
+                        sysreg_match = sysreg_from_gpr_pattern.search(line)
+                        if sysreg_match:
+                            gpr = sysreg_match.group(1)
+                            # Look back for the last assignment to this GPR
+                            if gpr in gpr_map:
+                                vector_table = gpr_map[gpr]
+                                print("Found indirect assignment in " + file + ": " + reg_name + " = " + gpr + " = " + vector_table)
+                                return vector_table
+            except Exception as e:
+                print("Error reading " + file + ": " + str(e))
+        return ""
 
 
     # asm_func is a giant string with newlines as linebreak

@@ -1,3 +1,4 @@
+#define CVAR
 #include "test.h"
 
 VOVAR(int, MYVAR) myglobal1[10];

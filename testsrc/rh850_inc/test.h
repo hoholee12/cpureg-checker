@@ -7,6 +7,8 @@
         "mov 0x345, r13 \n\t" \
         "mov 0x123, r4 \n\t" \
         "jr _hellothere_hello \n\t" \
+        "mov _myVectorTable, r20 \n\t" \
+        "ldsr r20, scbp \n\t" \
     );
 #define TESTASM 1
 
@@ -17,6 +19,15 @@
 #define PVAR(x, y) volatile x *
 #define MYVAR 1
 
+#define NULLPTR (void*)0
+
+#ifdef CVAR
+int* myVectorTable[] = {
+    NULLPTR,
+    NULLPTR,
+    NULLPTR,
+};
+
 extern void _hellothere_hello(
     SomeType len, 
     void * mydata[],
@@ -25,3 +36,4 @@ extern void _hellothere_hello(
 typedef struct _SomeType {
     int hello;
 } SomeType;
+#endif

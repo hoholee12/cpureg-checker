@@ -78,7 +78,7 @@ class CpuRegParser:
         # -- will also need to be careful, user can do "push {reg, lr}, pop {reg, pc}" which is similar to "dispose imm, list, [reg]"
         # -- we will also need the info for {pc} for correct branch path.
         # - stmdb, ldmia -> advanced version of push, pop.
-        # -- push {r4, lr} -> stmdb sp!, {r4, lr} (this means we can just treat stmdb sp! -> push)
+        # -- push {r4, lr} -> stmdb sp!,
         # -- pop {r4, pc} -> ldmia sp!, {r4, pc} (this means we can just treat ldmia sp! -> pop)
         # --- anything can be used besides sp! -> ignore because we will not give a fuck other than the stack.
         self.armv7m_push_pattern = re.compile(r"^push\s+{((?:(?!,\s*lr)[^}])*).*}")
@@ -536,7 +536,6 @@ class CpuRegParser:
     # returns asm_funcs(body), func_unit_tracker(for caller stack)
     # TODO: 1. we shall parse for callstack first, 2. and then parse push/pop after that.
     def parse_functions_asm_persrc(self, srcpath: str, incpaths: list) -> tuple:
-        # we generate the c files first
         mw_srcpath = os.path.basename(srcpath)
         mw_srcpath_fnonly = mw_srcpath.split(".")[0]
         mw_srcpath_ext = mw_srcpath.split(".")[1]
@@ -544,15 +543,30 @@ class CpuRegParser:
         with open(srcpath, 'r') as f:
             lines = f.readlines()
         new_srcpath = os.path.join(self.pf_workspace_dir, mw_srcpath_fnonly + ".pregen.c") 
-        
+
+        # Process .set directives before macro preprocessing
+        set_defines = {}
+        processed_lines = []
+        set_pattern = re.compile(r"^\s*\.set\s+(\w+)\s*,\s*(.+)")
+        for line in lines:
+            m = set_pattern.match(line)
+            if m:
+                # Save the macro name and value
+                macro_name = m.group(1)
+                macro_value = m.group(2).strip()
+                set_defines[macro_name] = macro_value
+                # Replace .set with #define for C preprocessor
+                processed_lines.append("#define " + macro_name + " " + macro_value + "\n")
+            else:
+                processed_lines.append(line)
+
         # sanitize before pushing into compiler
         with open(new_srcpath, 'w') as f:
-            for i in lines:
+            for i in processed_lines:
                 parsedi = i
                 if (parsedi.strip().startswith(".if") or parsedi.strip().startswith(".elif") or 
                     parsedi.strip().startswith(".else") or parsedi.strip().startswith(".endif")):
                     parsedi = parsedi.replace(".", "#")   
-                    # there is no other place that the . could be other than in the beginning, so this should be fine
                 # get rid of the comments
                 if self.asm_comment_pattern_2.search(parsedi):
                     parsedi = self.asm_comment_pattern_2.search(parsedi).group(1) + "\n"
