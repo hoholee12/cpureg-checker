@@ -1,6 +1,12 @@
 import re
 
 class CpuRegAsmParser():
+    # scour through everywhere for VTOR(armv7m) or SCBP(rh850) insertion code
+    # attempt to locate the vector table.
+    # def parse_arch_vectors(self, ):
+
+
+
     # asm_func is a giant string with newlines as linebreak
     # this returns list of funcs broken down by branch ops
     # i dont intend to save this anywhere

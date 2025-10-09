@@ -20,7 +20,6 @@ class CpuRegParser:
         self.pf_workspace_dir = os.path.join(self.mw_workspace_dir, "parsed_gen")
         self.callstack_gen_dir = os.path.join(self.mw_workspace_dir, "callstack_gen")
         self.proc_funcbody_dir = os.path.join(self.mw_workspace_dir, "proc_funcbody")
-        self.proc_funcbody_asm_dir = os.path.join(self.mw_workspace_dir, "proc_funcbody_asm")
 
         # asm extensions
         self.asm_ext = []
@@ -264,7 +263,7 @@ class CpuRegParser:
         mw_srcpath = os.path.basename(srcpath)
         mw_srcpath_fnonly = mw_srcpath.split(".")[0]
         mw_srcpath_ext = mw_srcpath.split(".")[1]
-        genfile = os.path.join(self.mw_workspace_dir, f"{mw_srcpath_fnonly}.generated.{mw_srcpath_ext}")
+        genfile = os.path.join(self.pf_workspace_dir, mw_srcpath_fnonly + ".generated." + mw_srcpath_ext)
         # check and remove old file
         if os.path.exists(genfile) and os.path.isfile(genfile):
             os.remove(genfile)
@@ -544,7 +543,7 @@ class CpuRegParser:
         lines = []
         with open(srcpath, 'r') as f:
             lines = f.readlines()
-        new_srcpath = os.path.join(self.mw_workspace_dir, f"{mw_srcpath_fnonly}.pregen.c") 
+        new_srcpath = os.path.join(self.pf_workspace_dir, mw_srcpath_fnonly + ".pregen.c") 
         
         # sanitize before pushing into compiler
         with open(new_srcpath, 'w') as f:
@@ -563,7 +562,7 @@ class CpuRegParser:
         mw_gcc_arg = "gcc -E "
         mw_gcc_arg_inc = " -I "
         
-        genfile = os.path.join(self.mw_workspace_dir, f"{mw_srcpath_fnonly}.generated.{mw_srcpath_ext}")
+        genfile = os.path.join(self.pf_workspace_dir, mw_srcpath_fnonly + ".generated." + mw_srcpath_ext)
         # check and remove old file
         if os.path.exists(genfile) and os.path.isfile(genfile):
             os.remove(genfile)
@@ -884,5 +883,4 @@ class CpuRegParser:
         os.makedirs(self.pf_workspace_dir, exist_ok = True)
         os.makedirs(self.callstack_gen_dir, exist_ok = True)
         os.makedirs(self.proc_funcbody_dir, exist_ok = True)
-        os.makedirs(self.proc_funcbody_asm_dir, exist_ok = True)
 

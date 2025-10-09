@@ -4,7 +4,7 @@
     myglobal123[0] = a;
     myglobal123[1] = b;
 
-    __asm volatile("popsp r4-r4");
+    __asm volatile("pop {r4, pc}");
     HELLOTHERE();
 
 }
