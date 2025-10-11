@@ -1,6 +1,6 @@
-myglobal4
-myglobal2
-myglobal1
 myVectorTable
-myglobal123
 myglobal3
+myglobal2
+myglobal123
+myglobal1
+myglobal4

@@ -1,6 +1,113 @@
 import re
 import os
 
+# CpuRegAsmEngine
+# this class provides register tracking (which gpr, sysregs, etc has it touched, 
+# push/pop pair counter & order per register, etc..) per given function.
+#
+# CpuRegAsmEngine().register_component(funcname: str, funcbody: str)
+# 1. if function is a c function, funcbody is a inline assembly 
+# (processed from outside using CpuRegAsmParser().parse_functions_c_inlineasm_to_asm)
+# 2. if function is a asm function, funcbody is an assembly code
+# 3. this is saved onto regcomp[funcname] = {funcbody, {}} 
+# (the dictionary inside -> register as key, push/pop count as value)
+# (push r4 makes it +1, pop r4 makes it -1; if push/pop exists for that register, it is marked 0.)
+# (if its not 0, then that register must be popped somewhere else, and is to be tracked further.)
+# (dictionary is to be iterated)
+#
+# CpuRegAsmEngine().generate_regmap() -> {}
+# 1. iterate regcomp dictionary
+# 2. per funcbody, iterate every lines, if regcomp[funcname][1][reg] is None, regcomp[funcname][1][reg] = 0
+# 3. if push or pop hit, get list of registers affected; iterate regcomp[funcname][1][reg]
+#    if push, ++; if pop, --.
+# 4. return regcomp dictionary
+
+class CpuRegAsmEngine:
+    def __init__(self, arch="armv7m"):
+        # regcomp[funcname] = (funcbody, {reg: push/pop count})
+        self.regcomp = {}
+        self.arch = arch
+        # define push/pop regex lists per architecture
+        self.arch_patterns = {
+            "armv7m": {
+                "push": [
+                    re.compile(r"\s*push\s*\{([^\}]*)\}"),
+                    re.compile(r"\s*stm\w*\s+\w+\s*,\s*\{([^\}]*)\}")
+                ],
+                "pop": [
+                    re.compile(r"\s*pop\s*\{([^\}]*)\}"),
+                    re.compile(r"\s*ldm\w*\s+\w+\s*,\s*\{([^\}]*)\}")
+                ]
+            },
+            "rh850": {
+                "push": [
+                    re.compile(r"\s*pushsp\s+([r\d\-\, ]+)"),
+                    re.compile(r"\s*prepare\s+([r\d\-\, ]+),\s*\w+")
+                ],
+                "pop": [
+                    re.compile(r"\s*popsp\s+([r\d\-\, ]+)"),
+                    re.compile(r"\s*dispose\s+\w+,\s*([r\d\-\, ]+)")
+                ]
+            }
+        }
+
+    def register_component(self, funcname: str, funcbody: str):
+        # initialize register tracking dictionary for this function
+        reg_dict = {}
+        self.regcomp[funcname] = (funcbody, reg_dict)
+
+    def _parse_registers(self, reg_str, arch):
+        # for armv7m: "r4, r5, r6"
+        # for rh850: "r4-r6, r10"
+        regs = []
+        reg_str = reg_str.replace(" ", "")
+        if arch == "armv7m":
+            regs = [r for r in reg_str.split(",") if r]
+        elif arch == "rh850":
+            for part in reg_str.split(","):
+                if "-" in part:
+                    start, end = part.split("-")
+                    if start.startswith("r") and end.startswith("r"):
+                        for i in range(int(start[1:]), int(end[1:]) + 1):
+                            regs.append("r" + str(i))
+                elif part:
+                    regs.append(part)
+        else:
+            regs = [r for r in reg_str.split(",") if r]
+        return regs
+
+    def generate_regmap(self):
+        # iterate regcomp dictionary and count push/pop per register
+        patterns = self.arch_patterns.get(self.arch, self.arch_patterns["armv7m"])
+        push_patterns = patterns["push"]
+        pop_patterns = patterns["pop"]
+
+        for funcname in self.regcomp:
+            funcbody, reg_dict = self.regcomp[funcname]
+            lines = funcbody.splitlines()
+            for line in lines:
+                # check push patterns
+                for push_re in push_patterns:
+                    push_search = push_re.search(line)
+                    if push_search:
+                        regs = self._parse_registers(push_search.group(1), self.arch)
+                        for reg in regs:
+                            if reg not in reg_dict:
+                                reg_dict[reg] = 0
+                            reg_dict[reg] += 1
+                # check pop patterns
+                for pop_re in pop_patterns:
+                    pop_search = pop_re.search(line)
+                    if pop_search:
+                        regs = self._parse_registers(pop_search.group(1), self.arch)
+                        for reg in regs:
+                            if reg not in reg_dict:
+                                reg_dict[reg] = 0
+                            reg_dict[reg] -= 1
+        return self.regcomp
+
+
+# swiss army knife class
 class CpuRegAsmParser():
     # scour through everywhere for VTOR(armv7m) or SCBP(rh850) insertion code
     # attempt to locate the vector table.
