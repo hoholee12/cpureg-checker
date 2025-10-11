@@ -58,7 +58,39 @@ class CpuRegAsmParser():
             except Exception as e:
                 print("Error reading " + file + ": " + str(e))
         return ""
+    
+    # inlineasm inside c func parser
+    # returns list of inline asm strings (one string per block)
+    def parse_functions_c_inlineasm_to_asm(self, c_func: str) -> list:
+        inlineblocks = []
+        tmplines = c_func.split('\n')
+        lines = [tmpline + '\n' for tmpline in tmplines]
+        loc = len(lines)
+        insideinlineasm = 0
+        inblock = 0
+        tmpstr = ""
+        for i in range(0, loc):
+            if re.compile(r"__asm").search(lines[i]):
+                insideinlineasm = 1
+            if insideinlineasm == 1 and "(" in lines[i]:
+                inblock = 1  # i do not expect any nested brackets in a inlineasm
+            if insideinlineasm == 1 and ")" in lines[i]:
+                inblock = 2
+            if inblock == 2:
+                tmpstr += lines[i]
+                insideinlineasm = 0
+                inblock = 0
+                # process shit here and move on to the next inlineasm
+                parsedlines_v = re.compile(r"\"(.*?)\"").findall(tmpstr)
+                parsedlines = [re.compile(r"^(.*?)\s*(?=\\|$)").search(line).group(1).strip() for line in parsedlines_v]
+                parsedtostr = "\n".join(parsedlines)
+                inlineblocks.append(parsedtostr)
+                tmpstr = ""
+            elif inblock == 1:
+                # double quote is always expected for strings in c syntax
+                tmpstr += lines[i]
 
+        return inlineblocks
 
     # asm_func is a giant string with newlines as linebreak
     # this returns list of funcs broken down by branch ops

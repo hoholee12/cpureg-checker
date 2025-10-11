@@ -31,6 +31,7 @@ class CpuRegApp:
         group.add_argument("-c", "--caller", type=str, help="print caller stack of function (test)")
         group.add_argument("-C", "--callee", type=str, help="print caller stack before reaching function (test)")
         arg_parser.add_argument("-s", "--sourceview", action="store_true", help="launch the source viewer GUI")
+        arg_parser.add_argument("-t", "--test", action="store_true", help="testmode")
 
         args = arg_parser.parse_args()
         target_platform = args.generate
@@ -52,6 +53,11 @@ class CpuRegApp:
             pass
         elif args.callee:
             self.parser.get_callee_flow(args.callee)
+            pass
+        elif args.test:
+            from cpureg.asm_parser import CpuRegAsmParser
+            testme = CpuRegAsmParser()
+            print(testme.parse_arch_vectors("cpureg_workspace/parsed_gen", "rh850"))
             pass
 
         # elif args.sourceview:

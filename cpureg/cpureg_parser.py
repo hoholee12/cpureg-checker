@@ -504,7 +504,7 @@ class CpuRegParser:
 
         # test inline asm
         for src_func in src_funcs.values():
-            inlineasmfuncs = self.parse_functions_c_inlineasm_to_asm(src_func)
+            inlineasmfuncs = CpuRegAsmParser().parse_functions_c_inlineasm_to_asm(src_func)
             for inlineasm in inlineasmfuncs:
                 print("processed inline funcs:\n" + inlineasm)
 
@@ -690,13 +690,12 @@ class CpuRegParser:
                 asm_funcs[trackerkey] = "{}"
 
         # test
-        cpuregasm = CpuRegAsmParser()
         for asm_func in asm_funcs.values():
-            tmp_funcs = cpuregasm.parse_functions_asm_breakdown_branches(asm_func, self.asm_branch_pattern)
+            tmp_funcs = CpuRegAsmParser().parse_functions_asm_breakdown_branches(asm_func, self.asm_branch_pattern)
             for mstr in tmp_funcs:
                 print("\nbreakdown:\n" + mstr)
 
-            print("\nreassemble:\n" + cpuregasm.parse_functions_asm_reassemble_branches(asm_func, tmp_funcs, self.asm_branch_pattern))
+            print("\nreassemble:\n" + CpuRegAsmParser().parse_functions_asm_reassemble_branches(asm_func, tmp_funcs, self.asm_branch_pattern))
 
         return asm_funcs, func_unit_tracker_asm
 
@@ -855,39 +854,6 @@ class CpuRegParser:
                         srcpaths.add(dirpath + os.path.sep + filename)
         
         return srcpaths
-
-    # we need to parse inlineasm too.
-    # returns list of inline asm strings (one string per block)
-    def parse_functions_c_inlineasm_to_asm(self, c_func: str) -> list:
-        inlineblocks = []
-        tmplines = c_func.split('\n')
-        lines = [tmpline + '\n' for tmpline in tmplines]
-        loc = len(lines)
-        insideinlineasm = 0
-        inblock = 0
-        tmpstr = ""
-        for i in range(0, loc):
-            if re.compile(r"__asm").search(lines[i]):
-                insideinlineasm = 1
-            if insideinlineasm == 1 and "(" in lines[i]:
-                inblock = 1  # i do not expect any nested brackets in a inlineasm
-            if insideinlineasm == 1 and ")" in lines[i]:
-                inblock = 2
-            if inblock == 2:
-                tmpstr += lines[i]
-                insideinlineasm = 0
-                inblock = 0
-                # process shit here and move on to the next inlineasm
-                parsedlines_v = re.compile(r"\"(.*?)\"").findall(tmpstr)
-                parsedlines = [re.compile(r"^(.*?)\s*(?=\\|$)").search(line).group(1).strip() for line in parsedlines_v]
-                parsedtostr = "\n".join(parsedlines)
-                inlineblocks.append(parsedtostr)
-                tmpstr = ""
-            elif inblock == 1:
-                # double quote is always expected for strings in c syntax
-                tmpstr += lines[i]
-
-        return inlineblocks
 
     def parse_workspace_cleanup(self):
         # delete whole workspace directory
