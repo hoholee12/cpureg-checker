@@ -31,7 +31,7 @@ void jumphere(int a, int b, int myglobal3){
     myglobal123[0] = a;
     myglobal123[1] = b;
 
-    __asm volatile("popsp r4-r4");
+    __asm volatile("pop {r4, pc}");
     HELLOTHERE();
 
 }
@@ -42,13 +42,13 @@ int HELLOTHERE(void)
 {
     printf("jumping there %d\n", myglobal4[3]);
 
-    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "jr _hellothere_hello \n\t" "mov _myVectorTable, r20 \n\t" "ldsr r20, scbp \n\t" );;
+    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "bl _hellothere_hello \n\t" "ldr r0, =_myVectorTable \n\t" "ldr r1, =0xE000ED08 \n\t" "str r0, [r1] \n\t" );;
     return 0;
 }
 
 int main(){
     printf("hello there\n");
-    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "jr _hellothere_hello \n\t" "mov _myVectorTable, r20 \n\t" "ldsr r20, scbp \n\t" );;
+    __asm volatile( "mov 0x234, r11 \n\t" "mov 0x345, r13 \n\t" "mov 0x123, r4 \n\t" "bl _hellothere_hello \n\t" "ldr r0, =_myVectorTable \n\t" "ldr r1, =0xE000ED08 \n\t" "str r0, [r1] \n\t" );;
 
     printf("ive returned\n");
 

@@ -17,12 +17,14 @@ from cpureg.cpureg_checker import CpuRegApp # for check_gcc
 class GenerateDialog(QDialog):
     HISTORY_FILE = "history.txt"
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, cpureg_parser=None):
         super().__init__(parent)
         self.setWindowTitle("Generate")
         self.setModal(True)
         self.resize(600, 300)
         layout = QVBoxLayout(self)
+
+        self.cpureg = cpureg_parser if cpureg_parser else CpuRegParser()
 
         # History select list
         layout.addWidget(QLabel("History:"))
@@ -49,7 +51,6 @@ class GenerateDialog(QDialog):
 
         # Target platform input
         self.platform_combo = QComboBox()
-        self.cpureg = CpuRegParser()
         self.platform_combo.addItems(self.cpureg.supported_platforms)
         form_layout.addRow("Target platform:", self.platform_combo)
 
@@ -176,10 +177,17 @@ QScrollBar:vertical, QScrollBar:horizontal {
 }
 """
 
-    def __init__(self, folder_path="cpureg_workspace/proc_funcbody"):
+    def __init__(self, folder_path=None):
         super().__init__()
 
         self.cpureg = CpuRegParser()
+        # Use cpureg_parser's workspace path instead of hardcoded path
+        self.folder_path = folder_path if folder_path else self.cpureg.proc_funcbody_dir
+        
+        # Ensure workspace folders exist using the existing cleanup function
+        if not os.path.exists(self.folder_path):
+            self.cpureg.parse_workspace_cleanup()
+        
         self.setWindowTitle("Source Viewer")
         self.resize(1000, 600)
 
@@ -219,7 +227,7 @@ QScrollBar:vertical, QScrollBar:horizontal {
         layout.addLayout(path_bar_layout)
 
         splitter = QSplitter(Qt.Horizontal)
-        self.folder_path = os.path.abspath(folder_path)
+        self.folder_path = os.path.abspath(self.folder_path)
         self.tree = QTreeView()
         self.tree.setHeaderHidden(True)
         self.tree.setSelectionMode(QTreeView.SingleSelection)
@@ -250,6 +258,11 @@ QScrollBar:vertical, QScrollBar:horizontal {
         time.sleep(1)
         self.model.clear()
         self.model.setHorizontalHeaderLabels(['Source Files'])
+        
+        # Ensure folder exists before trying to list it
+        if not os.path.exists(self.folder_path):
+            return
+        
         groups = {}
         for fname in os.listdir(self.folder_path):
             if fname.count('.') < 4 or not fname.endswith('.txt'):
@@ -272,7 +285,8 @@ QScrollBar:vertical, QScrollBar:horizontal {
             self.tree.setExpanded(src_item.index(), True)
 
     def load_call_list(self, func_name: str) -> set[str]:
-        call_list_file = os.path.join("cpureg_workspace", "callstack_gen", self.cpureg.funcname_hashgen(func_name))
+        # Use cpureg_parser's funcname_hashgen method
+        call_list_file = os.path.join(self.cpureg.callstack_gen_dir, self.cpureg.funcname_hashgen(func_name))
         print("[DEBUG] Reading call list file: " + call_list_file)
         functions = set()
         if os.path.exists(call_list_file):
@@ -378,7 +392,8 @@ QScrollBar:vertical, QScrollBar:horizontal {
                         return
 
     def on_generate(self):
-        dialog = GenerateDialog(self)
+        # Pass the cpureg instance to avoid duplicate instantiation
+        dialog = GenerateDialog(self, self.cpureg)
         if dialog.exec():
             include_paths, target_platform = dialog.get_paths()
             try:
